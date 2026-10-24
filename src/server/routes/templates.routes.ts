@@ -1,7 +1,7 @@
 import express, { Request, Response } from 'express';
 import crypto from 'node:crypto';
 import { dbStore } from '../../modules/db/store.js';
-import { authenticateStaff, requireAdmin } from '../middleware/auth.js';
+import { authenticateStaff, requireStaff } from '../middleware/auth.js';
 import { sendProblem } from '../security.js';
 import {
   quotationTemplateCreateSchema,
@@ -46,9 +46,9 @@ templatesRouter.get('/templates/:id', (req: Request, res: Response) => {
 
 /**
  * POST /api/v1/templates
- * Solo ADMIN puede crear plantillas
+ * Personal autenticado (ADMIN y SALES_REP) puede crear plantillas
  */
-templatesRouter.post('/templates', requireAdmin, (req: Request, res: Response) => {
+templatesRouter.post('/templates', requireStaff, (req: Request, res: Response) => {
   const parsed = quotationTemplateCreateSchema.safeParse(req.body);
   if (!parsed.success) {
     return sendProblem(res, 400, 'Datos incompletos', parsed.error.issues[0]?.message || 'Datos de plantilla inválidos');
@@ -90,9 +90,9 @@ templatesRouter.post('/templates', requireAdmin, (req: Request, res: Response) =
 
 /**
  * PUT /api/v1/templates/:id
- * Solo ADMIN puede editar plantillas
+ * Personal autenticado puede editar plantillas
  */
-templatesRouter.put('/templates/:id', requireAdmin, (req: Request, res: Response) => {
+templatesRouter.put('/templates/:id', requireStaff, (req: Request, res: Response) => {
   const parsed = quotationTemplateUpdateSchema.safeParse(req.body);
   if (!parsed.success) {
     return sendProblem(res, 400, 'Datos inválidos', parsed.error.issues[0]?.message || 'Datos de plantilla inválidos');
@@ -134,7 +134,7 @@ templatesRouter.put('/templates/:id', requireAdmin, (req: Request, res: Response
 /**
  * DELETE /api/v1/templates/:id
  */
-templatesRouter.delete('/templates/:id', requireAdmin, (req: Request, res: Response) => {
+templatesRouter.delete('/templates/:id', requireStaff, (req: Request, res: Response) => {
   const state = dbStore.getState();
   if (!state.templates) state.templates = [];
   const idx = state.templates.findIndex((t) => t.id === req.params.id);

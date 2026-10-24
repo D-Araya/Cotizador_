@@ -6,6 +6,8 @@ import { authenticateStaff } from '../middleware/auth.js';
 import { sendProblem } from '../security.js';
 import {
   updateQuotationLinesSchema,
+  quotationSettingsUpdateSchema,
+  quotationExtraCostsSchema,
   quotationCreateSchema,
   quotationStatusUpdateSchema,
   quotationOfflineAcceptSchema,
@@ -279,6 +281,51 @@ quotationsRouter.get('/:id', (req: Request, res: Response) => {
 });
 
 /**
+ * PATCH /api/v1/quotations/:id
+ * Paso 4 y Autoguardado: Actualiza texto de presentación, notas, términos y validez (OpenAPI updateQuotationSettings).
+ */
+quotationsRouter.patch('/:id', async (req: Request, res: Response) => {
+  const state = dbStore.getState();
+  const quot = state.quotations.find((q) => q.id === req.params.id);
+  if (!quot) return sendProblem(res, 404, 'Cotización no encontrada', 'No existe.');
+
+  if (req.user?.role === 'SALES_REP' && quot.salesRepId !== req.user.id) {
+    return sendProblem(res, 403, 'Acceso denegado', 'No puede modificar cotizaciones de otro asesor.');
+  }
+
+  if (quot.status !== 'DRAFT' && quot.status !== 'PENDING_APPROVAL') {
+    return sendProblem(res, 400, 'Cotización no editable', 'Solo las cotizaciones en estado borrador o pendiente de aprobación pueden ser modificadas.');
+  }
+
+  const parsed = quotationSettingsUpdateSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return sendProblem(res, 400, 'Datos inválidos', parsed.error.issues[0]?.message || 'Datos de configuración de cotización inválidos');
+  }
+
+  const { presentationText, notes, internalNotes, terms, validityDays, title, currency, discountPct } = parsed.data;
+
+  if (presentationText !== undefined) quot.presentationText = presentationText;
+  if (notes !== undefined) quot.notes = notes;
+  if (internalNotes !== undefined) quot.internalNotes = internalNotes;
+  if (terms !== undefined) quot.terms = terms;
+  if (title !== undefined) quot.title = title;
+  if (currency !== undefined) quot.currency = currency;
+  if (validityDays !== undefined) {
+    quot.validityDays = validityDays;
+    if (quot.sentAt) {
+      quot.validUntil = new Date(new Date(quot.sentAt).getTime() + validityDays * 86400000).toISOString();
+    }
+  }
+  if (discountPct !== undefined) {
+    quot.discountPct = discountPct;
+  }
+
+  quot.updatedAt = new Date().toISOString();
+
+  res.json(quot);
+});
+
+/**
  * PUT /api/v1/quotations/:id/lines
  * Reemplaza líneas de la cotización con validación estricta de margen y derivación de costos del catálogo.
  * - Acepta solo { catalogItemId, quantity, price | marginPct }
@@ -450,6 +497,55 @@ quotationsRouter.put('/:id/lines', (req: Request, res: Response) => {
   quot.ufRate = totals.ufRate;
   quot.ufNetSubtotal = totals.ufNetSubtotal;
   quot.ufGrandTotal = totals.ufGrandTotal;
+  quot.updatedAt = new Date().toISOString();
+
+  res.json(quot);
+});
+
+/**
+ * PUT /api/v1/quotations/:id/extra-costs
+ * Paso 3: Reemplaza costos adicionales que no suman al total de la venta ni afectan el margen (OpenAPI replaceExtraCosts).
+ */
+quotationsRouter.put('/:id/extra-costs', async (req: Request, res: Response) => {
+  const state = dbStore.getState();
+  const quot = state.quotations.find((q) => q.id === req.params.id);
+  if (!quot) return sendProblem(res, 404, 'Cotización no encontrada', 'No existe.');
+
+  if (req.user?.role === 'SALES_REP' && quot.salesRepId !== req.user.id) {
+    return sendProblem(res, 403, 'Acceso denegado', 'No puede modificar cotizaciones de otro asesor.');
+  }
+
+  if (quot.status !== 'DRAFT' && quot.status !== 'PENDING_APPROVAL') {
+    return sendProblem(res, 400, 'Cotización no editable', 'Solo las cotizaciones en estado borrador o pendiente de aprobación pueden ser modificadas.');
+  }
+
+  const parsed = quotationExtraCostsSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return sendProblem(res, 400, 'Costos extra inválidos', parsed.error.issues[0]?.message || 'Estructura de costos adicionales inválida');
+  }
+
+  const processedExtraCosts: ExtraCostLine[] = (parsed.data.extraCosts || []).map((ec, idx) => {
+    const qty = ec.quantity || 1;
+    const price = ec.price || 0;
+    const subtotal = ec.subtotal !== undefined ? ec.subtotal : price * qty;
+    return {
+      id: ec.id || `ec-${crypto.randomUUID()}-${idx}`,
+      name: ec.name,
+      unit: ec.unit || 'GLOBAL',
+      cost: ec.cost || 0,
+      price,
+      quantity: qty,
+      subtotal,
+      notes: ec.notes || undefined,
+      type: 'SERVICE',
+      catalogItemId: ec.catalogItemId || undefined,
+    };
+  });
+
+  const extraCostsTotal = processedExtraCosts.reduce((acc, ec) => acc + ec.subtotal, 0);
+
+  quot.extraCosts = processedExtraCosts;
+  quot.extraCostsTotal = extraCostsTotal;
   quot.updatedAt = new Date().toISOString();
 
   res.json(quot);

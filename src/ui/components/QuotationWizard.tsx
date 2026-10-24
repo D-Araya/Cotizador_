@@ -46,9 +46,20 @@ interface WizardProps {
   onCancel: () => void;
   initialStep?: number;
   initialLines?: QuotationLine[];
+  initialTemplate?: QuotationTemplate | null;
 }
 
-export function QuotationWizard({ company, salesRepId, currentUser, usersList, onFinished, onCancel, initialStep = 1, initialLines = [] }: WizardProps) {
+export function QuotationWizard({
+  company,
+  salesRepId,
+  currentUser,
+  usersList,
+  onFinished,
+  onCancel,
+  initialStep = 1,
+  initialLines = [],
+  initialTemplate,
+}: WizardProps) {
   const [currentStep, setCurrentStep] = useState<number>(initialStep);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -146,6 +157,13 @@ export function QuotationWizard({ company, salesRepId, currentUser, usersList, o
     }
     loadData();
   }, []);
+
+  // When initialTemplate is passed, pre-populate lines and terms
+  useEffect(() => {
+    if (initialTemplate && catalogItems.length > 0) {
+      handleApplyTemplate(initialTemplate);
+    }
+  }, [initialTemplate, catalogItems]);
 
   // When customer changes, load their contacts
   useEffect(() => {
@@ -795,16 +813,6 @@ export function QuotationWizard({ company, salesRepId, currentUser, usersList, o
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowAiDraftModal(true)}
-                  className="px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-colors flex items-center gap-1.5 shadow-sm cursor-pointer"
-                  title="Analiza una solicitud o imagen y propone líneas del catálogo"
-                >
-                  <span>🤖</span>
-                  <span>Del Documento al Borrador (IA)</span>
-                </button>
-
                 <button
                   type="button"
                   onClick={() => setShowTemplatesModal(true)}

@@ -22,7 +22,12 @@ export function getEffectiveQuotationStatus<
     validUntil?: string;
   }
 >(quotation: T): QuotationStatus {
-  if (quotation.status === 'ACCEPTED' || quotation.status === 'REJECTED') {
+  if (
+    quotation.status === 'ACCEPTED' ||
+    quotation.status === 'REJECTED' ||
+    quotation.status === 'DRAFT' ||
+    quotation.status === 'PENDING_APPROVAL'
+  ) {
     return quotation.status;
   }
   if (quotation.status === 'EXPIRED') {

@@ -20,6 +20,7 @@ import {
   User,
   Customer,
   CompanySettings,
+  QuotationTemplate,
 } from '../../../modules/types.ts';
 import { formatMoney } from '../../../shared-kernel/formatMoney.ts';
 import { StatusBadge, MarginExceptionBadge, statusLabels, getEffectiveQuotationStatus } from '../../components/CommonBadges.tsx';
@@ -67,6 +68,7 @@ export function QuotationsPage(props: QuotationsPageProps) {
   const [statusFilter, setStatusFilter] = useState('');
   const [isWizardOpen, setIsWizardOpen] = useState(false);
   const [showTemplatesModal, setShowTemplatesModal] = useState(false);
+  const [selectedTemplateForWizard, setSelectedTemplateForWizard] = useState<QuotationTemplate | null>(null);
 
   // Modals state
   const [revisionsQuote, setRevisionsQuote] = useState<Quotation | null>(null);
@@ -150,12 +152,17 @@ export function QuotationsPage(props: QuotationsPageProps) {
         salesRepId={user.id}
         currentUser={user}
         usersList={usersList}
+        initialTemplate={selectedTemplateForWizard}
         onFinished={(qid) => {
           setIsWizardOpen(false);
+          setSelectedTemplateForWizard(null);
           refreshQuotations();
           if (onRefreshRelatedData) onRefreshRelatedData();
         }}
-        onCancel={() => setIsWizardOpen(false)}
+        onCancel={() => {
+          setIsWizardOpen(false);
+          setSelectedTemplateForWizard(null);
+        }}
       />
     );
   }
@@ -589,11 +596,11 @@ export function QuotationsPage(props: QuotationsPageProps) {
       <TemplatesModal
         isOpen={showTemplatesModal}
         onClose={() => setShowTemplatesModal(false)}
-        onSelectTemplate={() => {
+        onSelectTemplate={(template) => {
+          setSelectedTemplateForWizard(template);
           setShowTemplatesModal(false);
           setIsWizardOpen(true);
         }}
-        catalogItems={[]}
       />
 
 

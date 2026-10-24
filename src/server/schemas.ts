@@ -34,6 +34,36 @@ export const updateQuotationLinesSchema = z.object({
   marginExceptionReason: z.string().trim().optional(),
 });
 
+export const quotationSettingsUpdateSchema = z.object({
+  presentationText: z.string().optional(),
+  notes: z.string().optional(),
+  internalNotes: z.string().optional(),
+  terms: z.string().optional(),
+  validityDays: z.number().int().positive().optional(),
+  title: z.string().optional(),
+  currency: z.string().optional(),
+  discountPct: z.number().min(0).max(99.99).optional(),
+});
+
+export const quotationExtraCostsSchema = z.object({
+  extraCosts: z
+    .array(
+      z.object({
+        id: z.string().optional(),
+        name: z.string().trim().min(1, 'El nombre del costo adicional es requerido'),
+        unit: z.string().optional().default('GLOBAL'),
+        price: z.number().min(0, 'El monto debe ser igual o superior a 0'),
+        cost: z.number().optional().default(0),
+        quantity: z.number().optional().default(1),
+        notes: z.string().optional(),
+        type: z.literal('SERVICE').optional().default('SERVICE'),
+        subtotal: z.number().optional(),
+        catalogItemId: z.string().optional(),
+      })
+    )
+    .default([]),
+});
+
 export const quotationStatusUpdateSchema = z.object({
   status: z.enum(['DRAFT', 'PENDING_APPROVAL', 'SENT', 'VIEWED', 'ACCEPTED', 'REJECTED', 'CHANGES_REQUESTED', 'EXPIRED']),
   note: z.string().trim().max(1000).optional(),

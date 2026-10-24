@@ -11,7 +11,72 @@
     <meta name="twitter:card" content="summary_large_image" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <script>
+      (function() {
+        // 1. Suprimir excepciones externas generadas por extensiones de Chrome (p. ej. Urban VPN eppiocemhmnlbhjplcgkofciiegomcon)
+        try {
+          window.addEventListener('error', function(event) {
+            var src = (event && (event.filename || (event.error && event.error.stack))) || '';
+            var msg = (event && (event.message || '')) || '';
+            if (src.indexOf('chrome-extension://') !== -1 || msg.indexOf('Cannot set property fetch') !== -1) {
+              if (event.preventDefault) event.preventDefault();
+              if (event.stopImmediatePropagation) event.stopImmediatePropagation();
+              return true;
+            }
+          }, true);
+
+          window.addEventListener('unhandledrejection', function(event) {
+            var reason = (event && (event.reason && (event.reason.stack || event.reason.message))) || '';
+            if (typeof reason === 'string' && (reason.indexOf('chrome-extension://') !== -1 || reason.indexOf('Cannot set property fetch') !== -1)) {
+              if (event.preventDefault) event.preventDefault();
+              if (event.stopImmediatePropagation) event.stopImmediatePropagation();
+            }
+          }, true);
+        } catch (e) {}
+
+        // 2. Habilitar setter seguro para window.fetch y Window.prototype.fetch
+        try {
+          var _origFetch = window.fetch;
+          var _currentFetch = _origFetch;
+
+          if (typeof Window !== 'undefined' && Window.prototype) {
+            try {
+              Object.defineProperty(Window.prototype, 'fetch', {
+                get: function() {
+                  return _currentFetch || _origFetch;
+                },
+                set: function(val) {
+                  _currentFetch = val;
+                  try {
+                    Object.defineProperty(this, 'fetch', {
+                      value: val,
+                      writable: true,
+                      configurable: true,
+                      enumerable: true
+                    });
+                  } catch (e) {}
+                },
+                configurable: true,
+                enumerable: true
+              });
+            } catch (e) {}
+          }
+
+          try {
+            Object.defineProperty(window, 'fetch', {
+              get: function() {
+                return _currentFetch || _origFetch;
+              },
+              set: function(val) {
+                _currentFetch = val;
+              },
+              configurable: true,
+              enumerable: true
+            });
+          } catch (e) {}
+        } catch (e) {}
+      })();
+    </script>
     <script>
       (function() {
         try {
