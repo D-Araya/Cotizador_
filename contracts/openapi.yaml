@@ -1,0 +1,936 @@
+openapi: 3.1.0
+info:
+  title: Cotizador Online API
+  version: 1.0.0
+  description: >
+    API Contract-First para el sistema "Cotizador Online" de gestión de cotizaciones
+    de productos y servicios, control estricto de margen y portal de clientes.
+servers:
+  - url: /api/v1
+    description: API v1 BFF (Backend For Frontend)
+
+tags:
+  - name: Auth
+    description: Login unificado, sesiones y credenciales
+  - name: Company
+    description: Configuración general de la empresa y margen mínimo
+  - name: Users
+    description: Gestión de usuarios internos (Admin y Comercial)
+  - name: Customers
+    description: Gestión de clientes y sus contactos asociados
+  - name: Catalog
+    description: Categorías y catálogo de productos y servicios
+  - name: Quotations
+    description: Ciclo de vida y gestión de cotizaciones (Core domain)
+  - name: Public
+    description: Endpoints públicos para visualización y decisión de cotizaciones por token
+  - name: Portal
+    description: Portal de autoservicio para contactos de clientes
+  - name: Dashboard
+    description: KPIs, métricas por comercial y comparativa producto vs servicio
+  - name: Notifications
+    description: Bandeja outbox y reintentos de envíos (Email y WhatsApp)
+  - name: Invoices
+    description: Documentos de cobro y registro de abonos / pagos (Chile)
+  - name: Operations
+    description: Órdenes de trabajo, peritajes e inspecciones de ingeniería naval
+
+paths:
+  /auth/login:
+    post:
+      tags: [Auth]
+      operationId: login
+      summary: Login unificado para Admin, Comercial y Contactos
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: admin@cotizador.com
+                password:
+                  type: string
+                  format: password
+                  example: admin123
+      responses:
+        '200':
+          description: Login exitoso
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    $ref: '#/components/schemas/User'
+                  role:
+                    type: string
+                    enum: [ADMIN, SALES_REP, CUSTOMER_CONTACT]
+                  redirectTo:
+                    type: string
+                    example: /app/dashboard
+                  mustChangePassword:
+                    type: boolean
+        '401':
+          $ref: '#/components/responses/ProblemDetails'
+
+  /auth/me:
+    get:
+      tags: [Auth]
+      operationId: getCurrentUser
+      summary: Obtiene el usuario autenticado actual y la sesión
+      responses:
+        '200':
+          description: Datos del usuario autenticado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    $ref: '#/components/schemas/User'
+                  role:
+                    type: string
+                  expiresInMinutes:
+                    type: integer
+                    example: 60
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      operationId: logout
+      summary: Cierra la sesión activa
+      responses:
+        '200':
+          description: Sesión cerrada con éxito
+
+  /company:
+    get:
+      tags: [Company]
+      operationId: getCompanySettings
+      summary: Obtiene la configuración de la empresa y margen mínimo
+      responses:
+        '200':
+          description: Configuración general
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompanySettings'
+    put:
+      tags: [Company]
+      operationId: updateCompanySettings
+      summary: Actualiza los datos de la empresa (Solo Admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CompanySettings'
+      responses:
+        '200':
+          description: Configuración actualizada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompanySettings'
+
+  /users:
+    get:
+      tags: [Users]
+      operationId: listUsers
+      summary: Lista los usuarios del sistema
+      responses:
+        '200':
+          description: Lista de usuarios
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/User'
+    post:
+      tags: [Users]
+      operationId: createUser
+      summary: Crea un usuario interno
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/User'
+      responses:
+        '201':
+          description: Usuario creado
+
+  /customers:
+    get:
+      tags: [Customers]
+      operationId: listCustomers
+      summary: Lista clientes con filtro y búsqueda
+      responses:
+        '200':
+          description: Lista de clientes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Customer'
+    post:
+      tags: [Customers]
+      operationId: createCustomer
+      summary: Registra un nuevo cliente
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Customer'
+      responses:
+        '201':
+          description: Cliente registrado
+
+  /customers/{id}:
+    get:
+      tags: [Customers]
+      operationId: getCustomerById
+      summary: Obtiene el detalle de un cliente
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Detalle del cliente
+    patch:
+      tags: [Customers]
+      operationId: updateCustomer
+      summary: Actualiza un cliente
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Cliente actualizado
+    delete:
+      tags: [Customers]
+      operationId: deleteCustomer
+      summary: Borrado lógico de un cliente (Admin)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Cliente desactivado
+
+  /customers/{id}/contacts:
+    get:
+      tags: [Customers]
+      operationId: listContactsByCustomer
+      summary: Lista los contactos de un cliente
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Lista de contactos
+    post:
+      tags: [Customers]
+      operationId: createContact
+      summary: Crea un nuevo contacto para el cliente
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '201':
+          description: Contacto creado
+
+  /categories:
+    get:
+      tags: [Catalog]
+      operationId: listCategories
+      summary: Lista categorías de productos y servicios
+      responses:
+        '200':
+          description: Lista de categorías
+    post:
+      tags: [Catalog]
+      operationId: createCategory
+      summary: Crea una nueva categoría
+      responses:
+        '201':
+          description: Categoría creada
+
+  /catalog-items:
+    get:
+      tags: [Catalog]
+      operationId: listCatalogItems
+      summary: Lista ítems del catálogo discriminados por tipo (PRODUCT o SERVICE)
+      parameters:
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [PRODUCT, SERVICE]
+        - name: categoryId
+          in: query
+          schema:
+            type: string
+        - name: q
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Ítems del catálogo
+    post:
+      tags: [Catalog]
+      operationId: createCatalogItem
+      summary: Crea un producto o servicio en el catálogo
+      responses:
+        '201':
+          description: Ítem creado
+
+  /catalog-items/{id}:
+    get:
+      tags: [Catalog]
+      operationId: getCatalogItem
+      summary: Detalle de un ítem
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Detalle del ítem
+    patch:
+      tags: [Catalog]
+      operationId: updateCatalogItem
+      summary: Actualiza un ítem
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Ítem actualizado
+    delete:
+      tags: [Catalog]
+      operationId: deleteCatalogItem
+      summary: Da de baja un ítem
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Ítem eliminado
+
+  /quotations:
+    get:
+      tags: [Quotations]
+      operationId: listQuotations
+      summary: Listado paginado de cotizaciones con filtros
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: customerId
+          in: query
+          schema:
+            type: string
+        - name: salesRepId
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Lista de cotizaciones
+    post:
+      tags: [Quotations]
+      operationId: createQuotationDraft
+      summary: Paso 1 - Crea un borrador de cotización seleccionando cliente y contacto
+      responses:
+        '201':
+          description: Borrador creado con número correlativo
+
+  /quotations/{id}:
+    get:
+      tags: [Quotations]
+      operationId: getQuotationById
+      summary: Obtiene el detalle completo de la cotización y desglose
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Detalle de la cotización
+    patch:
+      tags: [Quotations]
+      operationId: updateQuotationSettings
+      summary: Paso 4 - Actualiza texto de presentación, notas, términos y validez
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Cotización actualizada
+
+  /quotations/{id}/lines:
+    put:
+      tags: [Quotations]
+      operationId: replaceQuotationLines
+      summary: Paso 2 - Reemplaza líneas de cotización y valida margen mínimo
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Líneas actualizadas con éxito
+        '422':
+          description: Margen menor al mínimo configurado (MARGIN_BELOW_MINIMUM)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/MarginProblemDetails'
+
+  /quotations/{id}/extra-costs:
+    put:
+      tags: [Quotations]
+      operationId: replaceExtraCosts
+      summary: Paso 3 - Reemplaza costos adicionales que no suman al total de la venta
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Costos extra actualizados
+
+  /quotations/{id}/send:
+    post:
+      tags: [Quotations]
+      operationId: sendQuotation
+      summary: Envía la cotización al cliente y emite QuotationSent
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Cotización enviada exitosamente
+
+  /quotations/{id}/duplicate:
+    post:
+      tags: [Quotations]
+      operationId: duplicateQuotation
+      summary: Duplica una cotización existente como un nuevo borrador
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '201':
+          description: Nuevo borrador duplicado
+
+  /quotations/{id}/status:
+    post:
+      tags: [Quotations]
+      operationId: changeQuotationStatusManually
+      summary: Cambio manual de estado por el comercial con comentario obligatorio
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Estado actualizado
+
+  /quotations/{id}/history:
+    get:
+      tags: [Quotations]
+      operationId: getQuotationHistory
+      summary: Obtiene la trazabilidad completa del historial de estados
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Historial de estados
+
+  /public/quotations/{token}:
+    get:
+      tags: [Public]
+      operationId: getPublicQuotation
+      summary: Vista pública de la cotización sin login. La primera apertura marca como Vista (Viewed)
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Cotización pública
+
+  /public/quotations/{token}/accept:
+    post:
+      tags: [Public]
+      operationId: acceptPublicQuotation
+      summary: El cliente acepta la cotización con términos obligatorios
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Cotización aceptada exitosamente
+
+  /public/quotations/{token}/reject:
+    post:
+      tags: [Public]
+      operationId: rejectPublicQuotation
+      summary: El cliente rechaza la cotización con motivo opcional
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Cotización rechazada
+
+  /portal/summary:
+    get:
+      tags: [Portal]
+      operationId: getPortalSummary
+      summary: Resumen de cotizaciones para el contacto del cliente (Aceptadas, Pendientes, Rechazadas)
+      responses:
+        '200':
+          description: Conteo de estados
+
+  /portal/quotations:
+    get:
+      tags: [Portal]
+      operationId: listPortalQuotations
+      summary: Listado de cotizaciones del cliente autenticado
+      responses:
+        '200':
+          description: Lista de cotizaciones del cliente
+
+  /portal/calendar:
+    get:
+      tags: [Portal]
+      operationId: getPortalCalendar
+      summary: Cotizaciones del mes con código de color de estado para vista calendario
+      responses:
+        '200':
+          description: Eventos de cotización por día
+
+  /portal/timeline:
+    get:
+      tags: [Portal]
+      operationId: getPortalTimeline
+      summary: Línea de tiempo cronológica de cotizaciones
+      responses:
+        '200':
+          description: Historial cronológico
+
+  /dashboard/summary:
+    get:
+      tags: [Dashboard]
+      operationId: getDashboardSummary
+      summary: KPIs generales del sistema (Aceptadas, Rechazadas, Enviadas, Vistas)
+      responses:
+        '200':
+          description: KPIs y tasas de conversión
+
+  /dashboard/by-sales-rep:
+    get:
+      tags: [Dashboard]
+      operationId: getDashboardBySalesRep
+      summary: Métricas por comercial (volumen, margen promedio, tasa de aceptación)
+      responses:
+        '200':
+          description: Rendimiento de comerciales
+
+  /dashboard/by-item-type:
+    get:
+      tags: [Dashboard]
+      operationId: getDashboardByItemType
+      summary: Comparativa de ventas y margen entre Productos y Servicios
+      responses:
+        '200':
+          description: Desglose por tipo de ítem
+
+  /notifications:
+    get:
+      tags: [Notifications]
+      operationId: listNotificationsOutbox
+      summary: Bandeja de mensajes Outbox (Email y WhatsApp)
+      responses:
+        '200':
+          description: Mensajes outbox
+
+  /invoices:
+    get:
+      tags: [Invoices]
+      operationId: listInvoices
+      summary: Lista facturas y comprobantes emitidos
+      parameters:
+        - name: customerId
+          in: query
+          schema: { type: string }
+        - name: status
+          in: query
+          schema: { type: string, enum: [PAID, PENDING, OVERDUE] }
+      responses:
+        '200':
+          description: Lista de facturas
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Invoice'
+    post:
+      tags: [Invoices]
+      operationId: createInvoice
+      summary: Genera un documento de cobro a partir de una cotización aceptada
+      responses:
+        '201':
+          description: Documento de cobro creado
+
+  /invoices/{id}:
+    get:
+      tags: [Invoices]
+      operationId: getInvoiceById
+      summary: Detalle de un documento de cobro
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Detalle del documento de cobro
+    patch:
+      tags: [Invoices]
+      operationId: updateInvoiceStatus
+      summary: Actualiza el estado de un documento de cobro
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Documento de cobro actualizado
+
+  /operations:
+    get:
+      tags: [Operations]
+      operationId: listOperations
+      summary: Lista órdenes de despacho y ejecución de servicios
+      parameters:
+        - name: customerId
+          in: query
+          schema: { type: string }
+        - name: status
+          in: query
+          schema: { type: string, enum: [SCHEDULED, IN_PROGRESS, COMPLETED] }
+        - name: type
+          in: query
+          schema: { type: string, enum: [PRODUCT_DELIVERY, SERVICE_EXECUTION] }
+      responses:
+        '200':
+          description: Lista de órdenes de operaciones
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/OperationOrder'
+    post:
+      tags: [Operations]
+      operationId: createOperationOrder
+      summary: Crea una orden logística para despacho o servicio
+      responses:
+        '201':
+          description: Orden operativa creada
+
+  /operations/{id}:
+    get:
+      tags: [Operations]
+      operationId: getOperationById
+      summary: Detalle de una orden de operación
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Detalle de la orden
+    patch:
+      tags: [Operations]
+      operationId: updateOperationProgress
+      summary: Actualiza avance, estado o guía de remisión
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Orden operativa actualizada
+
+  /audit-logs:
+    get:
+      tags: [Audit]
+      operationId: listAuditLogs
+      summary: Lista registros de auditoría y trazabilidad con filtros
+      parameters:
+        - name: entity
+          in: query
+          schema: { type: string, enum: [ALL, CATALOG, CUSTOMERS, CONTACTS, COMPANY, USERS] }
+        - name: actorRole
+          in: query
+          schema: { type: string, enum: [ALL, ADMIN, SALES_REP, CUSTOMER_CONTACT] }
+        - name: q
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: Lista de registros de auditoría
+    post:
+      tags: [Audit]
+      operationId: createAuditLog
+      summary: Registra un nuevo evento de auditoría
+      responses:
+        '201':
+          description: Registro de auditoría creado
+
+  /audit-logs/export.csv:
+    get:
+      tags: [Audit]
+      operationId: exportAuditLogsCsv
+      summary: Exporta los registros de auditoría en formato CSV con BOM UTF-8
+      parameters:
+        - name: entity
+          in: query
+          schema: { type: string }
+        - name: actorRole
+          in: query
+          schema: { type: string }
+        - name: q
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: Archivo CSV descargable
+          content:
+            text/csv:
+              schema:
+                type: string
+
+  /system/backup:
+    get:
+      tags: [System]
+      operationId: getSystemBackup
+      summary: Descarga snapshot completo de la base de datos en formato JSON
+      responses:
+        '200':
+          description: Archivo de copia de seguridad JSON
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /system/restore:
+    post:
+      tags: [System]
+      operationId: restoreSystemBackup
+      summary: Restaura la base de datos del sistema a partir de un archivo JSON (Solo Administrador)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Base de datos restaurada exitosamente
+        '403':
+          description: Acceso denegado (Solo Administrador)
+
+components:
+  schemas:
+    User:
+      type: object
+      properties:
+        id: { type: string }
+        email: { type: string }
+        name: { type: string }
+        role: { type: string, enum: [ADMIN, SALES_REP, CUSTOMER_CONTACT] }
+        phone: { type: string }
+        active: { type: boolean }
+
+    CompanySettings:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        ruc: { type: string }
+        address: { type: string }
+        phone: { type: string }
+        email: { type: string }
+        currency: { type: string }
+        taxRatePct: { type: number }
+        minMarginPct: { type: number, example: 25.0 }
+        defaultPresentationText: { type: string }
+        defaultTerms: { type: string }
+        sessionTimeoutMinutes: { type: integer }
+
+    Customer:
+      type: object
+      properties:
+        id: { type: string }
+        businessName: { type: string }
+        taxId: { type: string }
+        address: { type: string }
+        salesRepId: { type: string }
+        active: { type: boolean }
+
+    Invoice:
+      type: object
+      properties:
+        id: { type: string }
+        invoiceNumber: { type: string, example: "F001-000142" }
+        quotationId: { type: string }
+        quotationNumber: { type: string, example: "COT-000001" }
+        customerId: { type: string }
+        customerBusinessName: { type: string }
+        customerTaxId: { type: string }
+        issueDate: { type: string, example: "2026-02-05" }
+        dueDate: { type: string, example: "2026-02-20" }
+        subtotal: { type: number, example: 13300.00 }
+        taxAmount: { type: number, example: 2394.00 }
+        total: { type: number, example: 15694.00 }
+        status: { type: string, enum: [PAID, PENDING, OVERDUE] }
+        paymentMethod: { type: string }
+        paymentTerms: { type: string }
+        paidAt: { type: string }
+
+    OperationOrder:
+      type: object
+      properties:
+        id: { type: string }
+        orderNumber: { type: string, example: "OP-2026-0038" }
+        quotationId: { type: string }
+        quotationNumber: { type: string, example: "COT-000001" }
+        customerId: { type: string }
+        customerBusinessName: { type: string }
+        type: { type: string, enum: [PRODUCT_DELIVERY, SERVICE_EXECUTION] }
+        title: { type: string }
+        description: { type: string }
+        status: { type: string, enum: [SCHEDULED, IN_PROGRESS, COMPLETED] }
+        progressPct: { type: integer, example: 65 }
+        assignedStaff: { type: string }
+        scheduledDate: { type: string, example: "2026-02-06" }
+        completedDate: { type: string }
+        deliveryAddress: { type: string }
+        guideNumber: { type: string, example: "T001-000124" }
+        itemsIncluded:
+          type: array
+          items: { type: string }
+
+    MarginProblemDetails:
+      type: object
+      properties:
+        type: { type: string, example: "https://cotizador.com/errors/margin-below-minimum" }
+        title: { type: string, example: "Margen insuficiente" }
+        status: { type: integer, example: 422 }
+        code: { type: string, example: "MARGIN_BELOW_MINIMUM" }
+        detail: { type: string, example: "El margen de la cotización (21.50%) está por debajo del mínimo de la empresa (25.00%)." }
+        marginPct: { type: number, example: 21.50 }
+        minMarginPct: { type: number, example: 25.00 }
+        shortfall: { type: number, example: 59.32 }
+
+    PaginatedQuotations:
+      type: object
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/Quotation' }
+        total: { type: integer }
+        page: { type: integer }
+        pageSize: { type: integer }
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: Token Bearer HMAC firmado para personal (Plan B) o enlace mágico
+
+  responses:
+    ProblemDetails:
+      description: Error RFC 9457 Problem Details
+      content:
+        application/problem+json:
+          schema:
+            type: object
+            properties:
+              type: { type: string }
+              title: { type: string }
+              status: { type: integer }
+              code: { type: string }
+              detail: { type: string }

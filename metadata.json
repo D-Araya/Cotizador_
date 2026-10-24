@@ -1,0 +1,6 @@
+{
+  "name": "Cotizador Online",
+  "description": "Sistema integral de gestión de cotizaciones para ingeniería y proyectos en Chile, con portal de clientes, control de margen comercial y asistente IA.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
