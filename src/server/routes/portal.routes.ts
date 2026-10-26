@@ -1,4 +1,5 @@
 import express, { Request, Response } from 'express';
+import crypto from 'node:crypto';
 import { dbStore } from '../../modules/db/store.js';
 import { authenticateClient } from '../middleware/auth.js';
 import { toPublicQuotationDTO, toClientInvoiceDTO, toClientOperationDTO } from '../dto.js';
@@ -26,7 +27,11 @@ portalRouter.get('/me', (req: Request, res: Response) => {
   const state = dbStore.getState();
   const customer = state.customers.find((c) => c.id === req.clientUser?.customerId);
   res.json({
-    user: req.clientUser,
+    user: {
+      ...req.clientUser,
+      id: req.clientUser?.contactId ? `usr-${req.clientUser.contactId}` : 'usr-client-01',
+      role: 'CUSTOMER_CONTACT',
+    },
     customer: customer ? {
       id: customer.id,
       businessName: customer.businessName,
@@ -113,6 +118,112 @@ portalRouter.get('/quotations', (req: Request, res: Response) => {
   });
 
   res.json(dtoList);
+});
+
+/**
+ * GET /api/v1/portal/quotations/:id
+ * Consulta individual de cotización por parte del cliente autenticado.
+ */
+portalRouter.get('/quotations/:id', (req: Request, res: Response) => {
+  const customerId = req.clientUser!.customerId;
+  const state = dbStore.getState();
+
+  const q = state.quotations.find((item) => item.id === req.params.id && item.customerId === customerId && item.status !== 'DRAFT');
+  if (!q) {
+    return sendProblem(res, 404, 'Cotización no encontrada', 'No existe o no pertenece a su empresa.');
+  }
+
+  const { isExpired } = computeQuotationValidity(q);
+  if (isExpired && q.status !== 'EXPIRED' && q.status !== 'ACCEPTED') {
+    q.status = 'EXPIRED';
+  }
+
+  const customer = state.customers.find((c) => c.id === customerId);
+  const contact = state.contacts.find((c) => c.id === q.contactId);
+  const salesRepUser = state.users.find((u) => u.id === q.salesRepId);
+  const salesRep = salesRepUser
+    ? {
+        name: salesRepUser.name,
+        email: salesRepUser.email,
+        phone: salesRepUser.phone,
+      }
+    : undefined;
+
+  const groupId = q.quotationGroupId || q.id;
+  const groupQuotes = state.quotations.filter((gq) => gq.quotationGroupId === groupId || gq.id === groupId);
+  const latestQuote = [...groupQuotes].sort((a, b) => (b.revision || 1) - (a.revision || 1))[0];
+  const hasNewerRevision = latestQuote && latestQuote.id !== q.id && (latestQuote.revision || 1) > (q.revision || 1);
+  const meta = hasNewerRevision
+    ? {
+        hasNewerRevision: true,
+        latestRevisionNumber: latestQuote.quotationNumber,
+        latestRevisionToken: latestQuote.publicToken,
+        latestRevisionId: latestQuote.id,
+      }
+    : undefined;
+
+  res.json(toPublicQuotationDTO(q, customer, contact, salesRep, meta));
+});
+
+/**
+ * POST /api/v1/portal/quotations/:id/view
+ * El cliente autenticado notifica que abrió o visualizó la propuesta técnica.
+ * Pasa de SENT a VIEWED garantizando lectura genuina del cliente.
+ */
+portalRouter.post('/quotations/:id/view', (req: Request, res: Response) => {
+  const customerId = req.clientUser!.customerId;
+  const state = dbStore.getState();
+
+  const quot = state.quotations.find((item) => item.id === req.params.id && item.customerId === customerId);
+  if (!quot) {
+    return sendProblem(res, 404, 'Cotización no encontrada', 'No existe o no pertenece a su empresa.');
+  }
+
+  if (quot.status === 'SENT') {
+    quot.status = 'VIEWED';
+    quot.firstViewedAt = new Date().toISOString();
+    quot.updatedAt = new Date().toISOString();
+
+    const contact = state.contacts.find((c) => c.id === quot.contactId);
+    const customer = state.customers.find((c) => c.id === customerId);
+    const salesRep = state.users.find((u) => u.id === quot.salesRepId);
+
+    const clientActorName = req.clientUser?.name || contact?.name || customer?.businessName || 'Cliente';
+
+    quot.statusHistory.push({
+      id: `hist-${crypto.randomUUID()}`,
+      fromStatus: 'SENT',
+      toStatus: 'VIEWED',
+      actor: clientActorName,
+      actorRole: 'CUSTOMER_CONTACT',
+      comment: `El cliente '${customer?.businessName || clientActorName}' abrió y visualizó la propuesta técnica y económica desde el Portal de Clientes.`,
+      timestamp: new Date().toISOString(),
+    });
+
+    dbStore.recordAudit({
+      entity: 'QUOTATION',
+      action: 'STATUS_CHANGE',
+      entityId: quot.id,
+      entityName: quot.quotationNumber,
+      description: `El cliente '${customer?.businessName || clientActorName}' abrió la cotización ${quot.quotationNumber} en el Portal de Clientes. Estado sincronizado a 'Vista por Cliente'.`,
+      actorId: req.clientUser?.contactId || 'portal-client',
+      actorName: clientActorName,
+      actorRole: 'CUSTOMER_CONTACT',
+    });
+
+    if (salesRep) {
+      dbStore.addOutbox({
+        quotationId: quot.id,
+        channel: 'EMAIL',
+        recipient: salesRep.email,
+        recipientName: salesRep.name,
+        subject: `Cotización ${quot.quotationNumber} VISTA en Portal por cliente (${customer?.businessName || clientActorName})`,
+        body: `Estimado/a ${salesRep.name}, la cotización N.º ${quot.quotationNumber} fue visualizada en el portal por el cliente ${clientActorName}.`,
+      });
+    }
+  }
+
+  res.json({ success: true, status: quot.status, firstViewedAt: quot.firstViewedAt });
 });
 
 /**

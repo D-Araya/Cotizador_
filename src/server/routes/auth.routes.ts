@@ -53,11 +53,11 @@ authRouter.post('/login', authLimiter, (req: Request, res: Response) => {
   const token = createStaffToken({
     id: user.id,
     email: user.email,
-    role: user.role as 'ADMIN' | 'SALES_REP',
+    role: user.role,
     name: user.name,
   });
 
-  const redirectTo = user.role === 'ADMIN' ? '/app/dashboard' : '/app/dashboard';
+  const redirectTo = user.role === 'CUSTOMER_CONTACT' ? '/portal/dashboard' : '/app/dashboard';
 
   const permissions = getPermissionsForRole(user.role);
 
@@ -68,6 +68,8 @@ authRouter.post('/login', authLimiter, (req: Request, res: Response) => {
       name: user.name,
       role: user.role,
       phone: user.phone,
+      customerId: user.customerId,
+      contactId: user.contactId,
       permissions,
     },
     token,
@@ -151,11 +153,12 @@ authRouter.post('/switch-user', (req: Request, res: Response, next) => {
   const token = createStaffToken({
     id: targetUser.id,
     email: targetUser.email,
-    role: targetUser.role as 'ADMIN' | 'SALES_REP',
+    role: targetUser.role,
     name: targetUser.name,
   });
 
   const permissions = getPermissionsForRole(targetUser.role);
+  const redirectTo = targetUser.role === 'CUSTOMER_CONTACT' ? '/portal/dashboard' : '/app/dashboard';
 
   res.json({
     user: {
@@ -164,12 +167,14 @@ authRouter.post('/switch-user', (req: Request, res: Response, next) => {
       name: targetUser.name,
       role: targetUser.role,
       phone: targetUser.phone,
+      customerId: targetUser.customerId,
+      contactId: targetUser.contactId,
       permissions,
     },
     token,
     role: targetUser.role,
     permissions,
-    redirectTo: '/app/dashboard',
+    redirectTo,
   });
 });
 

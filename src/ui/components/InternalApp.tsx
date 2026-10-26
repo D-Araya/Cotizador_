@@ -3942,12 +3942,11 @@ export function InternalApp({ user, onLogout, onOpenPublicLink, onSwitchUser }: 
                 className="w-full p-2 rounded-lg border border-slate-300 dark:border-slate-700 text-xs bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-medium"
               >
                 <option value="SENT">Enviada / Pendiente</option>
-                <option value="VIEWED">Vista</option>
                 <option value="CHANGES_REQUESTED">Ajustes Solicitados</option>
                 <option value="DRAFT">Borrador</option>
               </select>
               <p className="text-[11px] text-slate-400 mt-1">
-                Nota: No se permite forzar ACEPTADA o RECHAZADA arbitrariamente. Para registrar una aceptación comercial con Orden de Compra física, use el botón <strong>Aceptación Offline</strong>.
+                Nota: El estado <strong>Vista por Cliente</strong> solo se activa automáticamente cuando el cliente abre y lee la propuesta. No se permite forzar ACEPTADA o RECHAZADA arbitrariamente; para registrar una compra física use <strong>Aceptación Offline</strong>.
               </p>
             </div>
 

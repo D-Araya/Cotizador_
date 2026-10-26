@@ -20,7 +20,7 @@ import {
 import { Quotation, CompanySettings, Customer, Contact, User } from '../../modules/types.ts';
 import { StatusBadge, ItemTypeBadge, statusLabels, getEffectiveQuotationStatus } from './CommonBadges.tsx';
 import { QuotationDocumentSkeleton } from './Skeleton.tsx';
-import { apiRequest } from '../api.ts';
+import { apiRequest, getActiveApiUser } from '../api.ts';
 import { formatMoney } from '../../shared-kernel/formatMoney.ts';
 
 interface PublicViewProps {
@@ -73,7 +73,10 @@ export function PublicQuotationView({ token: propToken }: PublicViewProps) {
         }
 
         // Notificar que la cotización fue vista de manera explícita (POST separado)
-        if (res.data.quotation.status === 'SENT') {
+        // Únicamente ante lectura genuina del cliente (o visitante público sin credenciales de staff)
+        const activeUser = getActiveApiUser();
+        const isStaff = activeUser && (activeUser.role === 'ADMIN' || activeUser.role === 'SALES_REP');
+        if (res.data.quotation.status === 'SENT' && !isStaff) {
           apiRequest(`/api/v1/public/quotations/${token}/view`, { method: 'POST' });
         }
       } else {
@@ -200,11 +203,19 @@ export function PublicQuotationView({ token: propToken }: PublicViewProps) {
   const services = quotation.lines.filter((l) => l.type === 'SERVICE');
   const effectiveStatus = getEffectiveQuotationStatus(quotation);
 
+  const activeUser = getActiveApiUser();
+  const isStaffUser = activeUser && (activeUser.role === 'ADMIN' || activeUser.role === 'SALES_REP');
+  const isCustomerUser = activeUser && activeUser.role === 'CUSTOMER_CONTACT';
+
   const handleBack = () => {
-    if (window.history.length > 1) {
+    if (isCustomerUser) {
+      navigate('/portal/quotations');
+    } else if (isStaffUser) {
+      navigate('/app/quotations');
+    } else if (window.history.length > 1) {
       navigate(-1);
     } else {
-      navigate('/app/quotations');
+      navigate('/');
     }
   };
 
@@ -239,10 +250,46 @@ export function PublicQuotationView({ token: propToken }: PublicViewProps) {
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 text-xs font-semibold cursor-pointer transition-colors shadow-xs"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
-              Volver
+              {isCustomerUser ? 'Volver al Portal' : isStaffUser ? 'Volver a Cotizaciones' : 'Volver'}
             </button>
           </div>
         </div>
+
+        {/* STAFF PREVIEW BANNER */}
+        {isStaffUser && (
+          <div className="p-3.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 text-indigo-950 dark:text-indigo-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs shadow-xs">
+            <div className="flex items-center gap-2.5">
+              <ShieldCheck className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
+              <span>
+                <strong>Modo Vista Previa Interna ({activeUser?.role === 'ADMIN' ? 'Administrador' : 'Asesor Comercial'}):</strong> Está revisando la propuesta técnica en modo de consulta interna. Esta inspección técnica <strong>no activa</strong> el estado «Vista por Cliente».
+              </span>
+            </div>
+            <button
+              onClick={() => navigate('/app/quotations')}
+              className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline shrink-0 cursor-pointer"
+            >
+              Volver al Panel &rarr;
+            </button>
+          </div>
+        )}
+
+        {/* CUSTOMER PORTAL BANNER */}
+        {isCustomerUser && (
+          <div className="p-3.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 text-emerald-950 dark:text-emerald-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs shadow-xs">
+            <div className="flex items-center gap-2.5">
+              <Building2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+              <span>
+                Portal Mandante: <strong>{customer?.businessName || 'Austral Salmón & Mar SpA'}</strong>. Visualización y lectura registrada para trazabilidad comercial.
+              </span>
+            </div>
+            <button
+              onClick={() => navigate('/portal/quotations')}
+              className="text-xs font-bold text-emerald-700 dark:text-emerald-300 hover:underline shrink-0 cursor-pointer"
+            >
+              &larr; Volver al Portal de Clientes
+            </button>
+          </div>
+        )}
 
         {/* REVISION NOTICE (P1.a) */}
         {(quotation as any).hasNewerRevision && (

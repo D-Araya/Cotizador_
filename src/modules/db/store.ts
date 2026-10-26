@@ -648,12 +648,17 @@ function generateSeedQuotations(): Quotation[] {
       });
     }
 
+    const customerFound = initialCustomers.find((c) => c.id === custId);
+    const salesRepFound = initialUsers.find((u) => u.id === salesRepId);
+
     quotations.push({
       id: `quot-${i}`,
       quotationNumber: qNum,
       customerId: custId,
+      customerBusinessName: customerFound?.businessName || 'Austral Salmón & Mar SpA',
       contactId: contact.id,
       salesRepId,
+      salesRepName: salesRepFound?.name || 'Sebastián Morales',
       status,
       createdAt,
       updatedAt: createdAt,

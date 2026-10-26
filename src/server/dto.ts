@@ -18,6 +18,9 @@ export interface PublicQuotationDTO {
   id: string;
   quotationNumber: string;
   quotationGroupId: string;
+  publicToken?: string;
+  customerId?: string;
+  customerBusinessName?: string;
   revision: number;
   isLatestRevision?: boolean;
   hasNewerRevision?: boolean;
@@ -161,6 +164,9 @@ export function toPublicQuotationDTO(
     id: q.id,
     quotationNumber: q.quotationNumber,
     quotationGroupId: q.quotationGroupId || q.id,
+    publicToken: q.publicToken,
+    customerId: q.customerId,
+    customerBusinessName: customer?.businessName || q.customerBusinessName,
     revision: q.revision || 1,
     isLatestRevision: meta?.hasNewerRevision ? false : true,
     hasNewerRevision: meta?.hasNewerRevision,

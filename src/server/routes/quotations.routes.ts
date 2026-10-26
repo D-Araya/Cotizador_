@@ -675,13 +675,13 @@ quotationsRouter.post('/:id/status', async (req: Request, res: Response) => {
     return sendProblem(res, 403, 'Acceso denegado', 'No puede modificar cotizaciones de otro asesor.');
   }
 
-  // REGLA: El personal no puede fijar ACCEPTED ni REJECTED arbitrariamente
-  if (targetStatus === 'ACCEPTED' || targetStatus === 'REJECTED') {
+  // REGLA: El personal no puede fijar ACCEPTED, REJECTED ni VIEWED arbitrariamente
+  if (targetStatus === 'ACCEPTED' || targetStatus === 'REJECTED' || targetStatus === 'VIEWED') {
     return sendProblem(
       res,
       403,
       'Operación no permitida',
-      'El personal no puede marcar una cotización como ACEPTADA o RECHAZADA directamente. La decisión debe provenir del cliente mediante su enlace o portal.'
+      `El personal no puede marcar una cotización como '${targetStatus}' manualmente. El estado 'Vista por Cliente' (VIEWED) solo se activa ante una lectura genuina del cliente, y la decisión ('ACCEPTED'/'REJECTED') debe provenir del mandante mediante su portal o enlace.`
     );
   }
 

@@ -124,6 +124,22 @@ export function ClientPortal({ user, onLogout, onOpenPublicLink, onSwitchUser }:
     }
   }
 
+  async function handleOpenClientQuote(quote: Quotation) {
+    if (quote.status === 'SENT') {
+      try {
+        await apiRequest(`/api/v1/portal/quotations/${quote.id}/view`, { method: 'POST' });
+        setQuotations((prev) =>
+          prev.map((item) => (item.id === quote.id ? { ...item, status: 'VIEWED' } : item))
+        );
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    if (quote.publicToken) {
+      onOpenPublicLink(quote.publicToken);
+    }
+  }
+
   async function loadPortalData() {
     setLoading(true);
     const [sumRes, quotRes, timeRes, invRes, opRes] = await Promise.all([
@@ -504,7 +520,7 @@ export function ClientPortal({ user, onLogout, onOpenPublicLink, onSwitchUser }:
                         </div>
 
                         <button
-                          onClick={() => onOpenPublicLink(q.publicToken)}
+                          onClick={() => handleOpenClientQuote(q)}
                           className="px-3 py-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-600/20 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-transparent hover:bg-emerald-600 hover:text-white transition-colors text-xs font-medium cursor-pointer flex items-center gap-1.5"
                         >
                           <ExternalLink className="w-3.5 h-3.5" />
@@ -906,7 +922,7 @@ export function ClientPortal({ user, onLogout, onOpenPublicLink, onSwitchUser }:
                               <span>Pedir Ajuste</span>
                             </button>
                             <button
-                              onClick={() => onOpenPublicLink(q.publicToken)}
+                              onClick={() => handleOpenClientQuote(q)}
                               className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-medium text-xs hover:bg-emerald-500 cursor-pointer transition-colors inline-flex items-center gap-1.5"
                               title="Ver documento completo o imprimir PDF"
                             >
@@ -984,7 +1000,7 @@ export function ClientPortal({ user, onLogout, onOpenPublicLink, onSwitchUser }:
                           {quotesOfDay.map((qd) => (
                             <button
                               key={qd.id}
-                              onClick={() => onOpenPublicLink(qd.publicToken)}
+                              onClick={() => handleOpenClientQuote(qd)}
                               className={`w-full text-left px-1.5 py-0.5 rounded text-[10px] font-mono font-bold truncate block cursor-pointer transition-opacity hover:opacity-80 ${
                                 qd.status === 'ACCEPTED'
                                   ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700/50'
