@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import React from 'react';
-import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, cleanup, within } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { QuotationWizard } from '../../src/ui/components/QuotationWizard.tsx';
 import { PublicQuotationView } from '../../src/ui/components/PublicQuotationView.tsx';
@@ -425,6 +425,79 @@ describe('Pruebas de Componentes React (Vitest + Testing Library + JSDOM)', () =
       fireEvent.click(salesButton!);
 
       expect(mockLogin).toHaveBeenCalledWith('smorales@mlingenieria.cl', 'admin123');
+    });
+  });
+
+  // =========================================================================
+  // Asistente: Botón "Guardar como plantilla" al lado izquierdo de "Guardar como borrador"
+  // =========================================================================
+  describe('Guardar como plantilla en Asistente de Cotización', () => {
+    it('muestra el botón "Guardar como plantilla" al lado izquierdo de "Guardar como Borrador" y guarda la plantilla', async () => {
+      const sampleLine = {
+        id: 'line-test-01',
+        name: 'Inspección de Casco en Varadero',
+        catalogItemId: 'serv-01',
+        cost: 100000,
+        price: 200000,
+        quantity: 1,
+        marginPct: 50,
+        subtotal: 200000,
+        costTotal: 100000,
+        type: 'SERVICE' as const,
+        unit: 'GL',
+      };
+
+      (apiRequest as any).mockImplementation((url: string, opts?: any) => {
+        if (url === '/api/v1/customers') return Promise.resolve({ data: mockCustomers, status: 200 });
+        if (url === '/api/v1/catalog-items') return Promise.resolve({ data: [], status: 200 });
+        if (url === '/api/v1/categories') return Promise.resolve({ data: [{ id: 'cat-01', name: 'Ingeniería Naval' }], status: 200 });
+        if (url === '/api/v1/templates' && opts?.method === 'POST') {
+          return Promise.resolve({
+            data: { id: 'tmpl-new-1', name: JSON.parse(opts.body).name, lines: [] },
+            status: 201,
+          });
+        }
+        return Promise.resolve({ data: {}, status: 200 });
+      });
+
+      render(
+        <MemoryRouter>
+          <QuotationWizard
+            company={mockCompany}
+            salesRepId={mockSalesRepUser.id}
+            currentUser={mockSalesRepUser}
+            initialStep={4}
+            initialLines={[sampleLine]}
+            onFinished={vi.fn()}
+            onCancel={vi.fn()}
+          />
+        </MemoryRouter>
+      );
+
+      // Verificar que ambos botones existen
+      const saveDraftBtn = await screen.findByRole('button', { name: /Guardar como Borrador/i });
+      const saveTemplateBtn = await screen.findByRole('button', { name: /Guardar como plantilla/i });
+
+      expect(saveDraftBtn).toBeTruthy();
+      expect(saveTemplateBtn).toBeTruthy();
+
+      // Verificar que "Guardar como plantilla" está situado inmediatamente a la izquierda de "Guardar como Borrador"
+      expect(saveTemplateBtn.compareDocumentPosition(saveDraftBtn) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+      // Abrir modal de guardar plantilla
+      fireEvent.click(saveTemplateBtn);
+
+      // Verificar diálogo modal
+      const dialog = await screen.findByRole('dialog');
+      expect(dialog).toBeTruthy();
+      expect(within(dialog).getByText('Crea una plantilla reutilizable a partir de esta cotización')).toBeTruthy();
+
+      // Enviar formulario del modal
+      const submitModalBtn = within(dialog).getByRole('button', { name: /Guardar como Plantilla/i });
+      fireEvent.click(submitModalBtn);
+
+      // Verificar mensaje de éxito
+      expect(await screen.findByText(/¡Plantilla guardada con éxito!/i)).toBeTruthy();
     });
   });
 });

@@ -6,6 +6,8 @@ import { toPublicQuotationDTO } from '../dto.js';
 import { computeQuotationValidity, createInvoiceForAcceptedQuotation } from '../services/quotation-operations.js';
 import { publicQuotationAcceptSchema } from '../schemas.js';
 
+import { verifyStaffToken } from '../auth.js';
+
 export const publicRouter = express.Router();
 
 // Aplica limitador de tasa para enlaces públicos
@@ -73,7 +75,7 @@ publicRouter.get('/quotations/:token', (req: Request, res: Response) => {
 /**
  * POST /api/v1/public/quotations/:token/view
  * El cliente notifica explícitamente que la cotización fue vista.
- * Pasa de SENT a VIEWED.
+ * Pasa de SENT a VIEWED solo si quien la ve es el cliente real (no personal interno).
  */
 publicRouter.post('/quotations/:token/view', (req: Request, res: Response) => {
   const state = dbStore.getState();
@@ -82,21 +84,48 @@ publicRouter.post('/quotations/:token/view', (req: Request, res: Response) => {
     return sendProblem(res, 404, 'Cotización no encontrada', 'El enlace es inválido o ha caducado.');
   }
 
+  // Verificar si la petición proviene de personal interno (ADMIN o SALES_REP) o vista previa
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    const rawToken = authHeader.substring(7).trim();
+    const staffPayload = verifyStaffToken(rawToken);
+    if (staffPayload && (staffPayload.role === 'ADMIN' || staffPayload.role === 'SALES_REP')) {
+      return res.json({
+        success: true,
+        status: quot.status,
+        isStaffPreview: true,
+        message: 'Visualización de personal interno: no altera estado de lectura del cliente.',
+      });
+    }
+  }
+
+  if (req.headers['x-staff-preview'] === 'true' || req.body?.isStaffPreview === true) {
+    return res.json({
+      success: true,
+      status: quot.status,
+      isStaffPreview: true,
+      message: 'Visualización de vista previa interna: no altera estado de lectura del cliente.',
+    });
+  }
+
   if (quot.status === 'SENT') {
     quot.status = 'VIEWED';
     quot.firstViewedAt = new Date().toISOString();
+    quot.viewedAt = new Date().toISOString();
     quot.updatedAt = new Date().toISOString();
 
     const contact = state.contacts.find((c) => c.id === quot.contactId);
     const salesRep = state.users.find((u) => u.id === quot.salesRepId);
+    const customer = state.customers.find((c) => c.id === quot.customerId);
+    const clientName = contact?.name || customer?.businessName || 'Cliente';
 
     quot.statusHistory.push({
       id: `hist-${crypto.randomUUID()}`,
       fromStatus: 'SENT',
       toStatus: 'VIEWED',
-      actor: contact?.name || 'Cliente',
+      actor: clientName,
       actorRole: 'CUSTOMER_CONTACT',
-      comment: 'El cliente abrió y visualizó la propuesta técnica y económica.',
+      comment: `El cliente (${clientName}) abrió y visualizó la propuesta técnica y económica.`,
       timestamp: new Date().toISOString(),
     });
 
@@ -107,8 +136,8 @@ publicRouter.post('/quotations/:token/view', (req: Request, res: Response) => {
         channel: 'EMAIL',
         recipient: salesRep.email,
         recipientName: salesRep.name,
-        subject: `Cotización ${quot.quotationNumber} VISTA por el cliente`,
-        body: `Estimado/a ${salesRep.name}, la cotización N.º ${quot.quotationNumber} ha sido vista por el cliente.`,
+        subject: `Cotización ${quot.quotationNumber} VISTA por el cliente (${clientName})`,
+        body: `Estimado/a ${salesRep.name}, la cotización N.º ${quot.quotationNumber} ha sido vista por el cliente ${clientName}.`,
       });
     }
   }

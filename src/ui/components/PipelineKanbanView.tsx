@@ -410,15 +410,12 @@ export function PipelineKanbanView({
 
                             {effectiveStatus === 'SENT' && (
                               <>
-                                <button
-                                  type="button"
-                                  onClick={() => handleMoveStatus(q, 'VIEWED')}
-                                  disabled={isBusy}
-                                  className="px-2 py-0.5 bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-bold rounded transition cursor-pointer disabled:opacity-50"
-                                  title="Marcar que el cliente revisó la propuesta"
+                                <span
+                                  className="text-[10px] text-slate-500 dark:text-slate-400 italic"
+                                  title="El cliente aún no ha abierto el enlace público de la propuesta"
                                 >
-                                  {isBusy ? '...' : 'Vista'}
-                                </button>
+                                  Pendiente de apertura
+                                </span>
                                 <button
                                   type="button"
                                   onClick={() => handleMoveStatus(q, 'REJECTED')}

@@ -17,12 +17,15 @@ import {
   HelpCircle,
   Paperclip,
   ExternalLink,
+  Layers,
+  X,
 } from 'lucide-react';
 import {
   User,
   Customer,
   Contact,
   CatalogItem,
+  Category,
   QuotationLine,
   ExtraCostLine,
   CompanySettings,
@@ -64,6 +67,7 @@ export function QuotationWizard({
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [catalogItems, setCatalogItems] = useState<CatalogItem[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [loadingData, setLoadingData] = useState<boolean>(true);
 
   // Step 1 State
@@ -82,6 +86,17 @@ export function QuotationWizard({
   const [showCatalogModal, setShowCatalogModal] = useState<boolean>(false);
   const [showAiDraftModal, setShowAiDraftModal] = useState<boolean>(false);
   const [showTemplatesModal, setShowTemplatesModal] = useState<boolean>(false);
+
+  // Save as Template Modal State
+  const [showSaveTemplateModal, setShowSaveTemplateModal] = useState<boolean>(false);
+  const [saveTemplateName, setSaveTemplateName] = useState<string>('');
+  const [saveTemplateCategoryId, setSaveTemplateCategoryId] = useState<string>('');
+  const [saveTemplateDescription, setSaveTemplateDescription] = useState<string>('');
+  const [saveTemplateIncludeTerms, setSaveTemplateIncludeTerms] = useState<boolean>(true);
+  const [saveTemplateIncludePresentation, setSaveTemplateIncludePresentation] = useState<boolean>(true);
+  const [savingTemplate, setSavingTemplate] = useState<boolean>(false);
+  const [saveTemplateSuccessMsg, setSaveTemplateSuccessMsg] = useState<string | null>(null);
+  const [saveTemplateErrorMsg, setSaveTemplateErrorMsg] = useState<string | null>(null);
 
   // Step 3 State (Extra Costs)
   const [extraCosts, setExtraCosts] = useState<ExtraCostLine[]>([]);
@@ -109,13 +124,27 @@ export function QuotationWizard({
   // Keyboard accessibility: Close on Escape
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape' && !showSendConfirmModal && !showCatalogModal && !showAiDraftModal && !showTemplatesModal) {
+      if (
+        e.key === 'Escape' &&
+        !showSendConfirmModal &&
+        !showCatalogModal &&
+        !showAiDraftModal &&
+        !showTemplatesModal &&
+        !showSaveTemplateModal
+      ) {
         onCancel();
       }
     }
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [showSendConfirmModal, showCatalogModal, showAiDraftModal, showTemplatesModal, onCancel]);
+  }, [
+    showSendConfirmModal,
+    showCatalogModal,
+    showAiDraftModal,
+    showTemplatesModal,
+    showSaveTemplateModal,
+    onCancel,
+  ]);
 
   // Auto-save draft on changes (Requirement 4)
   useEffect(() => {
@@ -147,12 +176,14 @@ export function QuotationWizard({
   useEffect(() => {
     async function loadData() {
       setLoadingData(true);
-      const [custRes, catRes] = await Promise.all([
+      const [custRes, catRes, categoriesRes] = await Promise.all([
         apiRequest<Customer[]>('/api/v1/customers'),
         apiRequest<CatalogItem[]>('/api/v1/catalog-items'),
+        apiRequest<Category[]>('/api/v1/categories'),
       ]);
       if (custRes.data) setCustomers(custRes.data);
       if (catRes.data) setCatalogItems(catRes.data);
+      if (categoriesRes.data) setCategories(categoriesRes.data);
       setLoadingData(false);
     }
     loadData();
@@ -478,6 +509,79 @@ export function QuotationWizard({
     }
 
     setCurrentStep(4);
+  }
+
+  // STEP 4: Open Save as Template Modal
+  function handleOpenSaveTemplateModal() {
+    setSaveTemplateErrorMsg(null);
+    setSaveTemplateSuccessMsg(null);
+    const defaultName = selectedCustomer?.businessName
+      ? `Plantilla: ${selectedCustomer.businessName}`
+      : lines.length > 0
+      ? `Plantilla: ${lines[0].name}`
+      : 'Nueva Plantilla de Cotización';
+    setSaveTemplateName(defaultName);
+    const firstCat = lines.length > 0 && lines[0].catalogItemId
+      ? catalogItems.find((c) => c.id === lines[0].catalogItemId)?.categoryId
+      : undefined;
+    setSaveTemplateCategoryId(firstCat || categories[0]?.id || 'cat-01');
+    setSaveTemplateDescription(`Plantilla técnica basada en la cotización actual con ${lines.length} partida(s).`);
+    setSaveTemplateIncludeTerms(true);
+    setSaveTemplateIncludePresentation(true);
+    setShowSaveTemplateModal(true);
+  }
+
+  // STEP 4: Confirm Save as Template
+  async function handleConfirmSaveTemplate(e?: React.FormEvent) {
+    if (e) e.preventDefault();
+    if (!saveTemplateName.trim()) {
+      setSaveTemplateErrorMsg('Debe ingresar un nombre para la plantilla.');
+      return;
+    }
+    if (lines.length === 0) {
+      setSaveTemplateErrorMsg('La cotización no contiene partidas técnicas para guardar como plantilla.');
+      return;
+    }
+
+    setSavingTemplate(true);
+    setSaveTemplateErrorMsg(null);
+    setSaveTemplateSuccessMsg(null);
+
+    const templateLines = lines.map((l) => {
+      let catalogItemId = l.catalogItemId;
+      if (!catalogItemId) {
+        const found = catalogItems.find((ci) => ci.name.toLowerCase() === l.name.toLowerCase());
+        catalogItemId = found?.id || catalogItems[0]?.id || 'serv-01';
+      }
+      return {
+        catalogItemId,
+        quantity: Math.max(1, l.quantity || 1),
+        discountPct: l.discountPct || 0,
+      };
+    });
+
+    const payload = {
+      name: saveTemplateName.trim(),
+      categoryId: saveTemplateCategoryId || categories[0]?.id || 'cat-01',
+      description: saveTemplateDescription.trim(),
+      lines: templateLines,
+      terms: saveTemplateIncludeTerms ? terms : company.defaultTerms,
+      presentationText: saveTemplateIncludePresentation ? presentationText : company.defaultPresentationText,
+    };
+
+    const res = await apiRequest('/api/v1/templates', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+
+    setSavingTemplate(false);
+
+    if (res.error) {
+      setSaveTemplateErrorMsg((res.error as any).detail || 'Error al guardar la plantilla.');
+      return;
+    }
+
+    setSaveTemplateSuccessMsg(`¡Plantilla "${saveTemplateName.trim()}" guardada exitosamente! Ya está disponible para su uso.`);
   }
 
   // STEP 4: Save draft
@@ -1602,6 +1706,17 @@ export function QuotationWizard({
               <div className="flex items-center gap-3">
                 <button
                   type="button"
+                  onClick={handleOpenSaveTemplateModal}
+                  disabled={saving || savingTemplate || lines.length === 0}
+                  className="px-4 py-2.5 rounded-lg border border-indigo-200 dark:border-indigo-800 bg-indigo-50/80 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 font-semibold text-sm hover:bg-indigo-100 dark:hover:bg-indigo-900/60 flex items-center gap-2 cursor-pointer shadow-xs transition-colors disabled:opacity-50"
+                  title={lines.length === 0 ? 'Agregue partidas para guardar como plantilla' : 'Guardar esta cotización como plantilla reutilizable'}
+                >
+                  <Layers className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                  Guardar como plantilla
+                </button>
+
+                <button
+                  type="button"
                   onClick={handleSaveDraft}
                   disabled={saving}
                   className="px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-medium text-sm hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center gap-2 cursor-pointer shadow-xs"
@@ -1827,6 +1942,187 @@ export function QuotationWizard({
         onSelectTemplate={handleApplyTemplate}
         catalogItems={catalogItems}
       />
+
+      {/* MODAL: GUARDAR COMO PLANTILLA */}
+      {showSaveTemplateModal && (
+        <div role="dialog" aria-modal="true" aria-labelledby="save-template-modal-title" className="fixed inset-0 z-50 bg-slate-900/60 dark:bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl max-w-lg w-full p-6 space-y-4 border border-slate-200 dark:border-slate-800 overflow-hidden">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
+              <div className="flex items-center gap-2.5 text-indigo-600 dark:text-indigo-400">
+                <div className="p-2 bg-indigo-50 dark:bg-indigo-950/80 rounded-lg">
+                  <Layers className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 id="save-template-modal-title" className="font-bold text-slate-900 dark:text-white text-base">
+                    Guardar como Plantilla
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Crea una plantilla reutilizable a partir de esta cotización
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowSaveTemplateModal(false)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer p-1 rounded-md"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {saveTemplateErrorMsg && (
+              <div className="p-3 bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-900/60 rounded-lg text-rose-700 dark:text-rose-300 text-xs flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                <span>{saveTemplateErrorMsg}</span>
+              </div>
+            )}
+
+            {saveTemplateSuccessMsg ? (
+              <div className="py-6 text-center space-y-4">
+                <div className="w-12 h-12 bg-emerald-100 dark:bg-emerald-950/80 rounded-full flex items-center justify-center mx-auto text-emerald-600 dark:text-emerald-400">
+                  <CheckCircle className="w-7 h-7" />
+                </div>
+                <div className="space-y-1">
+                  <h4 className="font-bold text-slate-900 dark:text-white text-sm">
+                    ¡Plantilla guardada con éxito!
+                  </h4>
+                  <p className="text-xs text-slate-600 dark:text-slate-300 max-w-sm mx-auto">
+                    {saveTemplateSuccessMsg}
+                  </p>
+                </div>
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowSaveTemplateModal(false)}
+                    className="px-5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs cursor-pointer shadow-sm"
+                  >
+                    Entendido, volver a la cotización
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <form onSubmit={handleConfirmSaveTemplate} className="space-y-4">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                    Nombre de la Plantilla <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={saveTemplateName}
+                    onChange={(e) => setSaveTemplateName(e.target.value)}
+                    placeholder="ej. Inspección Carena y Varada Estándar"
+                    className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                      Categoría
+                    </label>
+                    <select
+                      value={saveTemplateCategoryId}
+                      onChange={(e) => setSaveTemplateCategoryId(e.target.value)}
+                      className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                    >
+                      {categories.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                      Partidas incluidas
+                    </label>
+                    <div className="px-3 py-2 text-xs rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 text-slate-600 dark:text-slate-300 font-medium">
+                      {lines.length} ítem(s) de cotización
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                    Descripción / Alcance general (Opcional)
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={saveTemplateDescription}
+                    onChange={(e) => setSaveTemplateDescription(e.target.value)}
+                    placeholder="Breve resumen del alcance o tipo de servicio que cubre esta plantilla..."
+                    className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+
+                {/* Previews / check options */}
+                <div className="space-y-2 p-3 bg-slate-50 dark:bg-slate-800/40 rounded-lg border border-slate-200 dark:border-slate-800 text-xs">
+                  <span className="font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                    Elementos adicionales a guardar:
+                  </span>
+                  <label className="flex items-center gap-2 cursor-pointer text-slate-700 dark:text-slate-300">
+                    <input
+                      type="checkbox"
+                      checked={saveTemplateIncludeTerms}
+                      onChange={(e) => setSaveTemplateIncludeTerms(e.target.checked)}
+                      className="rounded border-slate-300 dark:border-slate-600 text-indigo-600 focus:ring-indigo-500"
+                    />
+                    <span>Incluir términos y condiciones comerciales actuales</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer text-slate-700 dark:text-slate-300">
+                    <input
+                      type="checkbox"
+                      checked={saveTemplateIncludePresentation}
+                      onChange={(e) => setSaveTemplateIncludePresentation(e.target.checked)}
+                      className="rounded border-slate-300 dark:border-slate-600 text-indigo-600 focus:ring-indigo-500"
+                    />
+                    <span>Incluir texto de presentación actual</span>
+                  </label>
+                </div>
+
+                {/* Preview list of lines */}
+                <div className="space-y-1">
+                  <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                    Partidas en la plantilla ({lines.length}):
+                  </span>
+                  <div className="max-h-28 overflow-y-auto space-y-1 divide-y divide-slate-100 dark:divide-slate-800 border border-slate-200 dark:border-slate-800 rounded-lg p-2 bg-white dark:bg-slate-900">
+                    {lines.map((l, idx) => (
+                      <div key={idx} className="flex justify-between items-center text-xs pt-1 first:pt-0">
+                        <span className="truncate pr-2 text-slate-800 dark:text-slate-200 font-medium">
+                          {l.quantity}x {l.name}
+                        </span>
+                        <span className="text-slate-500 dark:text-slate-400 font-mono text-[11px] shrink-0">
+                          {formatMoney(l.subtotal, company.currency)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-3 pt-3 border-t border-slate-200 dark:border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setShowSaveTemplateModal(false)}
+                    className="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-xs font-medium hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={savingTemplate}
+                    className="px-5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold flex items-center gap-2 cursor-pointer shadow-sm disabled:opacity-50"
+                  >
+                    <Layers className="w-4 h-4" />
+                    {savingTemplate ? 'Guardando plantilla...' : 'Guardar como Plantilla'}
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

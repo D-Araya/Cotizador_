@@ -272,6 +272,7 @@ export interface Quotation {
   nextActionAt?: string;
   nextActionNote?: string;
   firstViewedAt?: string;
+  viewedAt?: string;
   lines: QuotationLine[];
   extraCosts: ExtraCostLine[];
   statusHistory: StatusHistoryEntry[];

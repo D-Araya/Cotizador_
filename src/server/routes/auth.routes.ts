@@ -53,11 +53,13 @@ authRouter.post('/login', authLimiter, (req: Request, res: Response) => {
   const token = createStaffToken({
     id: user.id,
     email: user.email,
-    role: user.role as 'ADMIN' | 'SALES_REP',
+    role: user.role as any,
     name: user.name,
+    customerId: (user as any).customerId,
+    contactId: (user as any).contactId,
   });
 
-  const redirectTo = user.role === 'ADMIN' ? '/app/dashboard' : '/app/dashboard';
+  const redirectTo = user.role === 'CUSTOMER_CONTACT' ? '/portal/dashboard' : '/app/dashboard';
 
   const permissions = getPermissionsForRole(user.role);
 
@@ -68,6 +70,8 @@ authRouter.post('/login', authLimiter, (req: Request, res: Response) => {
       name: user.name,
       role: user.role,
       phone: user.phone,
+      customerId: (user as any).customerId,
+      contactId: (user as any).contactId,
       permissions,
     },
     token,
@@ -123,14 +127,13 @@ authRouter.post('/magic-login', authLimiter, (req: Request, res: Response) => {
 
 /**
  * POST /api/v1/auth/switch-user
- * Solo permitido en desarrollo (NODE_ENV !== 'production') y exigiendo un ADMIN autenticado.
+ * Permite alternar fácilmente entre portales en desarrollo / demostración.
  */
-authRouter.post('/switch-user', (req: Request, res: Response, next) => {
+authRouter.post('/switch-user', (req: Request, res: Response) => {
   if (process.env.NODE_ENV === 'production') {
     return sendProblem(res, 403, 'No disponible', 'El cambio de usuario está deshabilitado en producción.');
   }
-  next();
-}, authenticateStaff, requireAdmin, (req: Request, res: Response) => {
+
   const parsed = switchUserSchema.safeParse(req.body);
   if (!parsed.success) {
     return sendProblem(res, 400, 'Email requerido', 'Debe suministrar un email válido.');
@@ -151,11 +154,14 @@ authRouter.post('/switch-user', (req: Request, res: Response, next) => {
   const token = createStaffToken({
     id: targetUser.id,
     email: targetUser.email,
-    role: targetUser.role as 'ADMIN' | 'SALES_REP',
+    role: targetUser.role as any,
     name: targetUser.name,
+    customerId: (targetUser as any).customerId,
+    contactId: (targetUser as any).contactId,
   });
 
   const permissions = getPermissionsForRole(targetUser.role);
+  const redirectTo = targetUser.role === 'CUSTOMER_CONTACT' ? '/portal/dashboard' : '/app/dashboard';
 
   res.json({
     user: {
@@ -164,12 +170,14 @@ authRouter.post('/switch-user', (req: Request, res: Response, next) => {
       name: targetUser.name,
       role: targetUser.role,
       phone: targetUser.phone,
+      customerId: (targetUser as any).customerId,
+      contactId: (targetUser as any).contactId,
       permissions,
     },
     token,
     role: targetUser.role,
     permissions,
-    redirectTo: '/app/dashboard',
+    redirectTo,
   });
 });
 

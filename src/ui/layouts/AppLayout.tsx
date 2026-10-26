@@ -16,6 +16,10 @@ import {
   X,
   AlertTriangle,
   Sparkles,
+  ArrowRightLeft,
+  Building2,
+  ShieldCheck,
+  Briefcase,
 } from 'lucide-react';
 import { User as UserType, CompanySettings, Customer } from '../../modules/types.ts';
 import { hasPermission } from '../../shared-kernel/permissions.ts';
@@ -185,6 +189,49 @@ export function AppLayout({
           </div>
 
           <div className="flex items-center gap-2.5">
+            {/* Quick Portal Switcher (Admin, Asesor, Cliente Austral Salmón) */}
+            {onSwitchUser && (
+              <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700 text-xs">
+                <button
+                  type="button"
+                  onClick={() => onSwitchUser('admin@mlingenieria.cl')}
+                  className={`px-2.5 py-1 rounded-lg font-bold flex items-center gap-1.5 transition-colors cursor-pointer ${
+                    user.role === 'ADMIN'
+                      ? 'bg-indigo-600 text-white shadow-xs'
+                      : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-slate-700/60'
+                  }`}
+                  title="Portal Administrador (Victoria Villegas C.)"
+                >
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  <span className="hidden lg:inline">Admin</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => onSwitchUser('smorales@mlingenieria.cl')}
+                  className={`px-2.5 py-1 rounded-lg font-bold flex items-center gap-1.5 transition-colors cursor-pointer ${
+                    user.role === 'SALES_REP'
+                      ? 'bg-sky-600 text-white shadow-xs'
+                      : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-slate-700/60'
+                  }`}
+                  title="Panel Asesor Comercial (Sebastián Morales)"
+                >
+                  <Briefcase className="w-3.5 h-3.5" />
+                  <span className="hidden lg:inline">Asesor</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => onSwitchUser('mbarrientos@australsalmon.cl')}
+                  className="px-2.5 py-1 rounded-lg font-bold flex items-center gap-1.5 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-950/60 border border-transparent hover:border-emerald-300 dark:hover:border-emerald-700 transition-colors cursor-pointer"
+                  title="Portal Cliente: Austral Salmón & Mar SpA (Ing. Matías Barrientos)"
+                >
+                  <Building2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                  <span className="hidden md:inline">Portal Austral Salmón</span>
+                </button>
+              </div>
+            )}
+
             {/* User role info */}
             <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-xs text-left">
               <div className="w-6 h-6 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-[10px] shrink-0">

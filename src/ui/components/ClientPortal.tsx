@@ -29,6 +29,8 @@ import {
   Check,
   MessageSquare,
   Send,
+  ShieldCheck,
+  Briefcase,
 } from 'lucide-react';
 import { Quotation, User as UserType, Invoice, OperationOrder } from '../../modules/types.ts';
 import { StatusBadge, statusLabels, getEffectiveQuotationStatus } from './CommonBadges.tsx';
@@ -350,6 +352,32 @@ export function ClientPortal({ user, onLogout, onOpenPublicLink, onSwitchUser }:
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5">
+            {onSwitchUser && (
+              <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700 text-xs">
+                <button
+                  type="button"
+                  onClick={() => onSwitchUser('admin@mlingenieria.cl')}
+                  className="px-2.5 py-1 rounded-lg font-bold flex items-center gap-1.5 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-950/60 transition-colors cursor-pointer"
+                  title="Volver al Portal Administrador (Victoria Villegas C.)"
+                >
+                  <ShieldCheck className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                  <span>Admin</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onSwitchUser('smorales@mlingenieria.cl')}
+                  className="px-2.5 py-1 rounded-lg font-bold flex items-center gap-1.5 text-sky-700 dark:text-sky-300 hover:bg-sky-100 dark:hover:bg-sky-950/60 transition-colors cursor-pointer"
+                  title="Panel Asesor Comercial (Sebastián Morales)"
+                >
+                  <Briefcase className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
+                  <span>Asesor</span>
+                </button>
+                <span className="px-2.5 py-1 rounded-lg font-bold flex items-center gap-1.5 bg-emerald-600 text-white shadow-xs">
+                  <Building className="w-3.5 h-3.5" />
+                  <span>Cliente</span>
+                </span>
+              </div>
+            )}
             <span className="text-xs px-3 py-1 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700 font-mono">
               Austral Salmón &amp; Mar SpA
             </span>
