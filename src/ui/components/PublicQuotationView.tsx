@@ -20,7 +20,7 @@ import {
 import { Quotation, CompanySettings, Customer, Contact, User } from '../../modules/types.ts';
 import { StatusBadge, ItemTypeBadge, statusLabels, getEffectiveQuotationStatus } from './CommonBadges.tsx';
 import { QuotationDocumentSkeleton } from './Skeleton.tsx';
-import { apiRequest, getActiveApiUser } from '../api.ts';
+import { apiRequest } from '../api.ts';
 import { formatMoney } from '../../shared-kernel/formatMoney.ts';
 
 interface PublicViewProps {
@@ -72,11 +72,8 @@ export function PublicQuotationView({ token: propToken }: PublicViewProps) {
           setSignerPosition(res.data.contact.position || 'Representante');
         }
 
-        // Notificar que la cotización fue vista de manera explícita únicamente si es el cliente real (no personal interno)
-        const activeUser = getActiveApiUser();
-        const isStaffUser = activeUser && (activeUser.role === 'ADMIN' || activeUser.role === 'SALES_REP');
-
-        if (res.data.quotation.status === 'SENT' && !isStaffUser) {
+        // Notificar que la cotización fue vista de manera explícita (POST separado)
+        if (res.data.quotation.status === 'SENT') {
           apiRequest(`/api/v1/public/quotations/${token}/view`, { method: 'POST' });
         }
       } else {
@@ -213,8 +210,6 @@ export function PublicQuotationView({ token: propToken }: PublicViewProps) {
 
   const isExpired = effectiveStatus === 'EXPIRED';
   const canDecide = (quotation.status === 'SENT' || quotation.status === 'VIEWED') && !isExpired;
-  const activeUser = getActiveApiUser();
-  const isStaff = activeUser && (activeUser.role === 'ADMIN' || activeUser.role === 'SALES_REP');
 
   return (
     <div className="min-h-screen bg-slate-100 dark:bg-slate-950 py-8 px-4 sm:px-6 lg:px-8 text-slate-800 dark:text-slate-100 transition-colors">
@@ -248,21 +243,6 @@ export function PublicQuotationView({ token: propToken }: PublicViewProps) {
             </button>
           </div>
         </div>
-
-        {/* Staff Preview Notice */}
-        {isStaff && (
-          <div className="bg-indigo-50 dark:bg-indigo-950/70 border border-indigo-200 dark:border-indigo-800 rounded-xl p-3 px-4 flex items-center justify-between text-xs text-indigo-900 dark:text-indigo-200">
-            <div className="flex items-center gap-2">
-              <ShieldCheck className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
-              <span>
-                <strong>Modo Vista Previa Interna:</strong> Estás visualizando este documento como personal de la empresa ({activeUser?.name}). Esta vista no se registrará como lectura del cliente.
-              </span>
-            </div>
-            <span className="text-[11px] font-mono font-bold bg-indigo-100 dark:bg-indigo-900/80 px-2 py-0.5 rounded text-indigo-700 dark:text-indigo-300 shrink-0">
-              Personal Interno
-            </span>
-          </div>
-        )}
 
         {/* REVISION NOTICE (P1.a) */}
         {(quotation as any).hasNewerRevision && (

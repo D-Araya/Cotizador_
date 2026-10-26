@@ -685,16 +685,6 @@ quotationsRouter.post('/:id/status', async (req: Request, res: Response) => {
     );
   }
 
-  // REGLA: El estado VIEWED solo se produce cuando el cliente visualiza la propuesta técnica y económica
-  if (targetStatus === 'VIEWED') {
-    return sendProblem(
-      res,
-      400,
-      'Operación no permitida',
-      'El estado "Vista por Cliente" solo se registra automáticamente cuando el cliente abre y visualiza la cotización.'
-    );
-  }
-
   // REGLA: Una cotización aceptada nunca vuelve a DRAFT
   if (quot.status === 'ACCEPTED' && targetStatus === 'DRAFT') {
     return sendProblem(res, 400, 'Transición prohibida', 'Una cotización ya aceptada por el cliente no puede revertirse a borrador.');

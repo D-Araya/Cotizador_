@@ -6,10 +6,8 @@ const SESSION_SECRET = process.env.SESSION_SECRET || 'ml_naval_dev_session_secre
 export interface StaffTokenPayload {
   userId: string;
   email: string;
-  role: 'ADMIN' | 'SALES_REP' | 'CUSTOMER_CONTACT';
+  role: 'ADMIN' | 'SALES_REP';
   name: string;
-  customerId?: string;
-  contactId?: string;
   exp: number; // timestamp en segundos
 }
 
@@ -42,24 +40,15 @@ export function verifyPassword(password: string, storedHash: string, salt: strin
 }
 
 /**
- * Emite un token HMAC-SHA256 para el personal o clientes autenticados (Válido por 24 horas)
+ * Emite un token HMAC-SHA256 para el personal (Válido por 24 horas)
  */
-export function createStaffToken(user: {
-  id: string;
-  email: string;
-  role: 'ADMIN' | 'SALES_REP' | 'CUSTOMER_CONTACT';
-  name: string;
-  customerId?: string;
-  contactId?: string;
-}): string {
+export function createStaffToken(user: { id: string; email: string; role: 'ADMIN' | 'SALES_REP'; name: string }): string {
   const exp = Math.floor(Date.now() / 1000) + 24 * 60 * 60; // 24 horas
   const payload: StaffTokenPayload = {
     userId: user.id,
     email: user.email,
     role: user.role,
     name: user.name,
-    customerId: user.customerId,
-    contactId: user.contactId,
     exp,
   };
   const payloadStr = Buffer.from(JSON.stringify(payload)).toString('base64url');
