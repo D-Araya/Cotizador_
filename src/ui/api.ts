@@ -226,3 +226,35 @@ export const api = {
   delete: <T>(url: string, options?: ApiRequestOptions) =>
     apiRequest<T>(url, { ...options, method: 'DELETE' }),
 };
+
+export const SYNC_EVENT_NAME = 'cotizador_quotations_sync';
+
+export function notifyQuotationSync() {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent(SYNC_EVENT_NAME, { detail: { timestamp: Date.now() } }));
+    try {
+      window.localStorage?.setItem('cotizador_sync_timestamp', Date.now().toString());
+    } catch {
+      // ignore
+    }
+  }
+}
+
+export function subscribeToQuotationSync(callback: () => void): () => void {
+  if (typeof window === 'undefined') return () => {};
+
+  const handleCustomEvent = () => callback();
+  const handleStorageEvent = (e: StorageEvent) => {
+    if (e.key === 'cotizador_sync_timestamp') {
+      callback();
+    }
+  };
+
+  window.addEventListener(SYNC_EVENT_NAME, handleCustomEvent);
+  window.addEventListener('storage', handleStorageEvent);
+
+  return () => {
+    window.removeEventListener(SYNC_EVENT_NAME, handleCustomEvent);
+    window.removeEventListener('storage', handleStorageEvent);
+  };
+}

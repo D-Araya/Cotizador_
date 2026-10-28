@@ -10,8 +10,8 @@ dashboardRouter.get('/dashboard/summary', (req: Request, res: Response) => {
   const state = dbStore.getState();
   let quotes = [...state.quotations];
 
-  if (req.user?.role === 'SALES_REP') {
-    quotes = quotes.filter((q) => q.salesRepId === req.user?.id);
+  if (req.query.salesRepId) {
+    quotes = quotes.filter((q) => q.salesRepId === req.query.salesRepId);
   }
 
   const totalQuotations = quotes.length;

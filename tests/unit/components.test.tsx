@@ -22,6 +22,8 @@ vi.mock('../../src/ui/api.ts', () => {
     setAuthToken: vi.fn(),
     setActiveApiUser: vi.fn(),
     clearClientSession: vi.fn(),
+    subscribeToQuotationSync: vi.fn().mockReturnValue(() => {}),
+    notifyQuotationSync: vi.fn(),
     api: {
       get: vi.fn().mockImplementation((url: string, opt?: any) => mockApiRequest(url, { ...opt, method: 'GET' })),
       post: vi.fn().mockImplementation((url: string, body?: any, opt?: any) => mockApiRequest(url, { ...opt, method: 'POST', body: JSON.stringify(body) })),
@@ -31,7 +33,7 @@ vi.mock('../../src/ui/api.ts', () => {
   };
 });
 
-import { apiRequest } from '../../src/ui/api.ts';
+import { apiRequest, getActiveApiUser } from '../../src/ui/api.ts';
 
 describe('Pruebas de Componentes React (Vitest + Testing Library + JSDOM)', () => {
   const mockAdminUser: User = {
@@ -262,6 +264,31 @@ describe('Pruebas de Componentes React (Vitest + Testing Library + JSDOM)', () =
 
       // Ahora que se ingresó la evidencia legal completa, el botón se habilita
       expect((acceptBtn as HTMLButtonElement).disabled).toBe(false);
+    });
+
+    it('Para personal comercial (ADMIN / ASESOR), se oculta el formulario de aceptación del cliente y se muestra el estado informativo', async () => {
+      (getActiveApiUser as any).mockReturnValue(mockSalesRepUser);
+
+      render(
+        <MemoryRouter>
+          <PublicQuotationView token="token-publico-seguro-12345" />
+        </MemoryRouter>
+      );
+
+      // Esperar a que la cotización se cargue
+      const codeElements = await screen.findAllByText('COT-2026-00010');
+      expect(codeElements.length).toBeGreaterThan(0);
+
+      // NO debe existir el botón de aceptar ni inputs de firma del cliente
+      expect(screen.queryByRole('button', { name: /Aceptar y Firmar Cotización/i })).toBeNull();
+      expect(screen.queryByPlaceholderText(/Marcelo Barrientos/i)).toBeNull();
+
+      // En su lugar, debe mostrarse el bloque de estado informativo para el asesor
+      expect(screen.getByText(/Estado de Decisión del Mandante/i)).toBeTruthy();
+      expect(screen.getByText(/Esperando Decisión del Cliente/i)).toBeTruthy();
+      expect(screen.getByRole('button', { name: /Copiar Enlace para el Cliente/i })).toBeTruthy();
+
+      (getActiveApiUser as any).mockReturnValue(undefined);
     });
   });
 

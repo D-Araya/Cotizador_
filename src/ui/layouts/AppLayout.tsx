@@ -200,6 +200,45 @@ export function AppLayout({
               </div>
             </div>
 
+            {/* Quick Role / Portal Switcher */}
+            {onSwitchUser && (
+              <div className="hidden sm:flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-lg border border-slate-200 dark:border-slate-700 text-xs">
+                <span className="text-[10px] uppercase font-bold text-slate-500 px-1 hidden md:inline">Portal:</span>
+                <button
+                  type="button"
+                  onClick={() => onSwitchUser('admin@mlingenieria.cl')}
+                  className={`px-2 py-0.5 rounded font-medium text-[11px] cursor-pointer transition-colors ${
+                    user.role === 'ADMIN'
+                      ? 'bg-indigo-600 text-white shadow-xs font-bold'
+                      : 'bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:text-indigo-600'
+                  }`}
+                  title="Cambiar a Administrador (Victoria Villegas)"
+                >
+                  Admin
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onSwitchUser('smorales@mlingenieria.cl')}
+                  className={`px-2 py-0.5 rounded font-medium text-[11px] cursor-pointer transition-colors ${
+                    user.role === 'SALES_REP' && user.email === 'smorales@mlingenieria.cl'
+                      ? 'bg-sky-600 text-white shadow-xs font-bold'
+                      : 'bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:text-sky-600'
+                  }`}
+                  title="Cambiar a Asesor Comercial (Sebastián Morales)"
+                >
+                  Asesor
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onSwitchUser('mbarrientos@australsalmon.cl')}
+                  className="px-2 py-0.5 rounded bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:text-emerald-600 font-medium text-[11px] cursor-pointer transition-colors"
+                  title="Abrir Portal Cliente (Ing. Matías Barrientos)"
+                >
+                  Cliente
+                </button>
+              </div>
+            )}
+
             {/* Theme Selector */}
             <ThemeSelector />
 

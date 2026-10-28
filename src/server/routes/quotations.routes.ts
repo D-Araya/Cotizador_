@@ -57,10 +57,9 @@ quotationsRouter.get('/', (req: Request, res: Response) => {
 
   const { status, customerId, salesRepId, q, page, pageSize } = req.query;
 
-  // REGLA DE AUTORIZACIÓN: El SALES_REP solo accede a sus propias cotizaciones
-  if (req.user?.role === 'SALES_REP') {
-    list = list.filter((item) => item.salesRepId === req.user?.id);
-  } else if (salesRepId) {
+  // Filtrado por asesor comercial (opcional mediante query param ?salesRepId=)
+  // Por defecto, tanto Admin como Asesor ven el pool corporativo completo sincronizado
+  if (salesRepId) {
     list = list.filter((item) => item.salesRepId === salesRepId);
   }
 
@@ -223,8 +222,9 @@ quotationsRouter.get('/follow-up/due', (req: Request, res: Response) => {
 
   let list = [...state.quotations];
 
-  if (req.user?.role === 'SALES_REP') {
-    list = list.filter((q) => q.salesRepId === req.user?.id);
+  const salesRepId = req.query.salesRepId as string | undefined;
+  if (salesRepId) {
+    list = list.filter((q) => q.salesRepId === salesRepId);
   }
 
   // Filtrar solo las que tienen nextActionAt definido y cuya fecha sea <= hoy (hoy o atrasada)
@@ -243,17 +243,49 @@ quotationsRouter.get('/follow-up/due', (req: Request, res: Response) => {
 });
 
 /**
+ * GET /api/v1/quotations/kpis
+ * Métricas agregadas en tiempo real para cotizaciones y pipeline
+ */
+quotationsRouter.get('/kpis', (req: Request, res: Response) => {
+  const state = dbStore.getState();
+  const list = state.quotations;
+
+  const total = list.length;
+  const draft = list.filter((q) => q.status === 'DRAFT').length;
+  const sent = list.filter((q) => q.status === 'SENT').length;
+  const viewed = list.filter((q) => q.status === 'VIEWED').length;
+  const changesRequested = list.filter((q) => q.status === 'CHANGES_REQUESTED').length;
+  const accepted = list.filter((q) => q.status === 'ACCEPTED').length;
+  const rejected = list.filter((q) => q.status === 'REJECTED').length;
+  const expired = list.filter((q) => q.status === 'EXPIRED').length;
+
+  const totalPipelineValue = list.reduce((acc, q) => acc + (q.grandTotal || q.total || 0), 0);
+  const acceptedValue = list.filter((q) => q.status === 'ACCEPTED').reduce((acc, q) => acc + (q.grandTotal || q.total || 0), 0);
+  const decided = accepted + rejected;
+  const winRate = decided > 0 ? Number(((accepted / decided) * 100).toFixed(1)) : 0;
+
+  res.json({
+    total,
+    draft,
+    sent,
+    viewed,
+    changesRequested,
+    accepted,
+    rejected,
+    expired,
+    totalPipelineValue,
+    acceptedValue,
+    winRate,
+  });
+});
+
+/**
  * GET /api/v1/quotations/:id
  */
 quotationsRouter.get('/:id', (req: Request, res: Response) => {
   const state = dbStore.getState();
   const quot = state.quotations.find((q) => q.id === req.params.id);
   if (!quot) return sendProblem(res, 404, 'Cotización no encontrada', 'No existe.');
-
-  // REGLA: El SALES_REP solo puede ver sus propias cotizaciones
-  if (req.user?.role === 'SALES_REP' && quot.salesRepId !== req.user.id) {
-    return sendProblem(res, 403, 'Acceso denegado', 'No tiene permisos para ver cotizaciones asignadas a otro asesor.');
-  }
 
   const { isExpired } = computeQuotationValidity(quot);
   if (isExpired && quot.status !== 'ACCEPTED' && quot.status !== 'REJECTED' && quot.status !== 'DRAFT') {
@@ -336,11 +368,6 @@ quotationsRouter.put('/:id/lines', (req: Request, res: Response) => {
   const state = dbStore.getState();
   const quot = state.quotations.find((q) => q.id === req.params.id);
   if (!quot) return sendProblem(res, 404, 'Cotización no encontrada', 'No existe.');
-
-  // Comprobar propiedad
-  if (req.user?.role === 'SALES_REP' && quot.salesRepId !== req.user.id) {
-    return sendProblem(res, 403, 'Acceso denegado', 'No puede modificar cotizaciones de otro asesor.');
-  }
 
   if (quot.status !== 'DRAFT' && quot.status !== 'PENDING_APPROVAL') {
     return sendProblem(res, 400, 'Cotización no editable', 'Solo las cotizaciones en estado borrador o pendiente de aprobación pueden ser modificadas.');
@@ -560,10 +587,6 @@ quotationsRouter.post('/:id/send', async (req: Request, res: Response) => {
   const quot = state.quotations.find((q) => q.id === req.params.id);
   if (!quot) return sendProblem(res, 404, 'Cotización no encontrada', 'No existe.');
 
-  if (req.user?.role === 'SALES_REP' && quot.salesRepId !== req.user.id) {
-    return sendProblem(res, 403, 'Acceso denegado', 'No puede enviar cotizaciones de otro asesor.');
-  }
-
   if (quot.status === 'PENDING_APPROVAL') {
     return sendProblem(
       res,
@@ -671,10 +694,6 @@ quotationsRouter.post('/:id/status', async (req: Request, res: Response) => {
   const quot = state.quotations.find((q) => q.id === req.params.id);
   if (!quot) return sendProblem(res, 404, 'Cotización no encontrada', 'No existe.');
 
-  if (req.user?.role === 'SALES_REP' && quot.salesRepId !== req.user.id) {
-    return sendProblem(res, 403, 'Acceso denegado', 'No puede modificar cotizaciones de otro asesor.');
-  }
-
   // REGLA: El personal no puede fijar ACCEPTED, REJECTED ni VIEWED arbitrariamente
   if (targetStatus === 'ACCEPTED' || targetStatus === 'REJECTED' || targetStatus === 'VIEWED') {
     return sendProblem(
@@ -763,10 +782,6 @@ const handleNextAction = async (req: Request, res: Response) => {
   const quot = state.quotations.find((q) => q.id === req.params.id);
   if (!quot) return sendProblem(res, 404, 'Cotización no encontrada', 'No existe.');
 
-  if (req.user?.role === 'SALES_REP' && quot.salesRepId !== req.user.id) {
-    return sendProblem(res, 403, 'Acceso denegado', 'No puede modificar cotizaciones de otro asesor.');
-  }
-
   const { nextActionAt, nextActionNote } = parsed.data;
 
   if (!nextActionAt) {
@@ -823,10 +838,6 @@ quotationsRouter.post(['/:id/reminder', '/:id/follow-up-reminder'], async (req: 
   const quot = state.quotations.find((q) => q.id === req.params.id);
   if (!quot) return sendProblem(res, 404, 'Cotización no encontrada', 'No existe.');
 
-  if (req.user?.role === 'SALES_REP' && quot.salesRepId !== req.user.id) {
-    return sendProblem(res, 403, 'Acceso denegado', 'No puede gestionar cotizaciones de otro asesor.');
-  }
-
   const contact = state.contacts.find((c) => c.id === quot.contactId);
   const cust = state.customers.find((c) => c.id === quot.customerId);
   const recipientEmail = contact?.email || cust?.email || 'contacto@cliente.cl';
@@ -882,10 +893,6 @@ quotationsRouter.post('/:id/reject', async (req: Request, res: Response) => {
   const quot = state.quotations.find((q) => q.id === req.params.id);
   if (!quot) return sendProblem(res, 404, 'Cotización no encontrada', 'No existe.');
 
-  if (req.user?.role === 'SALES_REP' && quot.salesRepId !== req.user.id) {
-    return sendProblem(res, 403, 'Acceso denegado', 'No puede modificar cotizaciones de otro asesor.');
-  }
-
   if (quot.status === 'ACCEPTED') {
     return sendProblem(res, 400, 'Cotización aceptada', 'No se puede rechazar una cotización ya aceptada formalmente.');
   }
@@ -931,10 +938,6 @@ quotationsRouter.post('/:id/duplicate', async (req: Request, res: Response) => {
   const state = dbStore.getState();
   const source = state.quotations.find((q) => q.id === req.params.id);
   if (!source) return sendProblem(res, 404, 'Cotización no encontrada', 'No existe.');
-
-  if (req.user?.role === 'SALES_REP' && source.salesRepId !== req.user.id) {
-    return sendProblem(res, 403, 'Acceso denegado', 'No puede duplicar cotizaciones de otro asesor.');
-  }
 
   const qNum = await NumberingService.nextQuotationNumber();
   const { token: publicToken } = generatePublicQuotationToken();
@@ -987,10 +990,6 @@ quotationsRouter.post('/:id/revisions', async (req: Request, res: Response) => {
   const state = dbStore.getState();
   const source = state.quotations.find((q) => q.id === req.params.id);
   if (!source) return sendProblem(res, 404, 'Cotización no encontrada', 'No existe.');
-
-  if (req.user?.role === 'SALES_REP' && source.salesRepId !== req.user.id) {
-    return sendProblem(res, 403, 'Acceso denegado', 'No puede crear revisiones de cotizaciones de otro asesor.');
-  }
 
   const quotationGroupId = source.quotationGroupId || source.id;
   source.quotationGroupId = quotationGroupId;
@@ -1076,10 +1075,6 @@ quotationsRouter.get('/:id/revisions', (req: Request, res: Response) => {
   const quot = state.quotations.find((q) => q.id === req.params.id);
   if (!quot) return sendProblem(res, 404, 'Cotización no encontrada', 'No existe.');
 
-  if (req.user?.role === 'SALES_REP' && quot.salesRepId !== req.user.id) {
-    return sendProblem(res, 403, 'Acceso denegado', 'No tiene permisos para ver cotizaciones de otro asesor.');
-  }
-
   const groupId = quot.quotationGroupId || quot.id;
   const groupQuotes = state.quotations
     .filter((q) => q.quotationGroupId === groupId || q.id === groupId)
@@ -1100,10 +1095,6 @@ quotationsRouter.post('/:id/accept-offline', async (req: Request, res: Response)
   const state = dbStore.getState();
   const quot = state.quotations.find((q) => q.id === req.params.id);
   if (!quot) return sendProblem(res, 404, 'Cotización no encontrada', 'No existe.');
-
-  if (req.user?.role === 'SALES_REP' && quot.salesRepId !== req.user.id) {
-    return sendProblem(res, 403, 'Acceso denegado', 'No puede gestionar cotizaciones de otro asesor.');
-  }
 
   const parsed = quotationOfflineAcceptSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -1174,10 +1165,6 @@ quotationsRouter.post('/:id/request-margin-approval', async (req: Request, res: 
   const state = dbStore.getState();
   const quot = state.quotations.find((q) => q.id === req.params.id);
   if (!quot) return sendProblem(res, 404, 'Cotización no encontrada', 'No existe.');
-
-  if (req.user?.role === 'SALES_REP' && quot.salesRepId !== req.user.id) {
-    return sendProblem(res, 403, 'Acceso denegado', 'No puede gestionar cotizaciones de otro asesor.');
-  }
 
   const parsed = quotationMarginRequestSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -1328,10 +1315,6 @@ quotationsRouter.post('/:id/attachments', async (req: Request, res: Response) =>
   const quot = state.quotations.find((q) => q.id === req.params.id);
   if (!quot) return sendProblem(res, 404, 'Cotización no encontrada', 'No existe.');
 
-  if (req.user?.role === 'SALES_REP' && quot.salesRepId !== req.user.id) {
-    return sendProblem(res, 403, 'Acceso denegado', 'No puede gestionar cotizaciones de otro asesor.');
-  }
-
   const parsed = quotationAttachmentSchema.safeParse(req.body);
   if (!parsed.success) {
     return sendProblem(res, 400, 'Datos inválidos', parsed.error.issues[0]?.message || 'El nombre y enlace URL son obligatorios.');
@@ -1370,10 +1353,6 @@ quotationsRouter.delete('/:id/attachments/:attachmentId', async (req: Request, r
   const state = dbStore.getState();
   const quot = state.quotations.find((q) => q.id === req.params.id);
   if (!quot) return sendProblem(res, 404, 'Cotización no encontrada', 'No existe.');
-
-  if (req.user?.role === 'SALES_REP' && quot.salesRepId !== req.user.id) {
-    return sendProblem(res, 403, 'Acceso denegado', 'No puede gestionar cotizaciones de otro asesor.');
-  }
 
   if (!quot.attachments) quot.attachments = [];
   const attIndex = quot.attachments.findIndex((a) => a.id === req.params.attachmentId);

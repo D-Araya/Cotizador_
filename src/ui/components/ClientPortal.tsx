@@ -29,6 +29,7 @@ import {
   Check,
   MessageSquare,
   Send,
+  RotateCcw,
 } from 'lucide-react';
 import { Quotation, User as UserType, Invoice, OperationOrder } from '../../modules/types.ts';
 import { StatusBadge, statusLabels, getEffectiveQuotationStatus } from './CommonBadges.tsx';
@@ -42,7 +43,7 @@ import {
   InvoicesGridSkeleton,
   OperationsGridSkeleton,
 } from './Skeleton.tsx';
-import { apiRequest } from '../api.ts';
+import { apiRequest, subscribeToQuotationSync, notifyQuotationSync } from '../api.ts';
 import { formatMoney } from '../../shared-kernel/formatMoney.ts';
 
 interface ClientPortalProps {
@@ -86,6 +87,8 @@ export function ClientPortal({ user, onLogout, onOpenPublicLink, onSwitchUser }:
   });
   const [timeline, setTimeline] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [isSyncing, setIsSyncing] = useState<boolean>(false);
+  const [lastSyncTime, setLastSyncTime] = useState<Date>(new Date());
 
   // Calendar month state
   const [currentDate, setCurrentDate] = useState<Date>(new Date(2026, 8, 1)); // Sep 2026
@@ -102,7 +105,30 @@ export function ClientPortal({ user, onLogout, onOpenPublicLink, onSwitchUser }:
   const t = portalTranslations[lang];
 
   useEffect(() => {
-    loadPortalData();
+    loadPortalData(false);
+
+    // Suscribirse a sincronizaciones automáticas en tiempo real
+    const unsubscribe = subscribeToQuotationSync(() => {
+      loadPortalData(true);
+    });
+
+    const handleFocus = () => {
+      loadPortalData(true);
+    };
+    window.addEventListener('focus', handleFocus);
+
+    // Sondeo de sincronización periódica cada 4 segundos
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        loadPortalData(true);
+      }
+    }, 4000);
+
+    return () => {
+      unsubscribe();
+      window.removeEventListener('focus', handleFocus);
+      clearInterval(interval);
+    };
   }, [user]);
 
   async function handleSendPortalAdjustment() {
@@ -120,7 +146,8 @@ export function ClientPortal({ user, onLogout, onOpenPublicLink, onSwitchUser }:
       setSelectedQuoteForAdjustment(null);
       setPortalAdjustmentMessage('');
       setPortalToast('Solicitud de ajuste remitida con éxito al equipo de ingeniería.');
-      await loadPortalData();
+      notifyQuotationSync();
+      await loadPortalData(true);
     }
   }
 
@@ -128,6 +155,7 @@ export function ClientPortal({ user, onLogout, onOpenPublicLink, onSwitchUser }:
     if (quote.status === 'SENT') {
       try {
         await apiRequest(`/api/v1/portal/quotations/${quote.id}/view`, { method: 'POST' });
+        notifyQuotationSync();
         setQuotations((prev) =>
           prev.map((item) => (item.id === quote.id ? { ...item, status: 'VIEWED' } : item))
         );
@@ -140,24 +168,37 @@ export function ClientPortal({ user, onLogout, onOpenPublicLink, onSwitchUser }:
     }
   }
 
-  async function loadPortalData() {
-    setLoading(true);
-    const [sumRes, quotRes, timeRes, invRes, opRes] = await Promise.all([
-      apiRequest<{ total: number; accepted: number; pending: number; rejected: number }>(
-        '/api/v1/portal/summary'
-      ),
-      apiRequest<Quotation[]>('/api/v1/portal/quotations'),
-      apiRequest<any[]>('/api/v1/portal/timeline'),
-      apiRequest<Invoice[]>('/api/v1/portal/invoices'),
-      apiRequest<OperationOrder[]>('/api/v1/portal/operations'),
-    ]);
+  async function loadPortalData(isBackground = false) {
+    if (!isBackground) {
+      setLoading(true);
+    } else {
+      setIsSyncing(true);
+    }
 
-    setLoading(false);
-    if (sumRes.data) setSummary(sumRes.data);
-    if (quotRes.data) setQuotations(quotRes.data);
-    if (timeRes.data) setTimeline(timeRes.data);
-    if (invRes.data) setInvoices(invRes.data);
-    if (opRes.data) setOperations(opRes.data);
+    try {
+      const [sumRes, quotRes, timeRes, invRes, opRes] = await Promise.all([
+        apiRequest<{ total: number; accepted: number; pending: number; rejected: number }>(
+          '/api/v1/portal/summary'
+        ),
+        apiRequest<Quotation[]>('/api/v1/portal/quotations'),
+        apiRequest<any[]>('/api/v1/portal/timeline'),
+        apiRequest<Invoice[]>('/api/v1/portal/invoices'),
+        apiRequest<OperationOrder[]>('/api/v1/portal/operations'),
+      ]);
+
+      if (sumRes.data) setSummary(sumRes.data);
+      if (quotRes.data) setQuotations(quotRes.data);
+      if (timeRes.data) setTimeline(timeRes.data);
+      if (invRes.data) setInvoices(invRes.data);
+      if (opRes.data) setOperations(opRes.data);
+      setLastSyncTime(new Date());
+    } finally {
+      if (!isBackground) {
+        setLoading(false);
+      } else {
+        setIsSyncing(false);
+      }
+    }
   }
 
   // Invoice calculations
@@ -369,6 +410,38 @@ export function ClientPortal({ user, onLogout, onOpenPublicLink, onSwitchUser }:
             <span className="text-xs px-3 py-1 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700 font-mono">
               Austral Salmón &amp; Mar SpA
             </span>
+
+            {/* Sincronización en Vivo */}
+            <button
+              onClick={() => loadPortalData(false)}
+              disabled={isSyncing}
+              title={`Última sincronización: ${lastSyncTime.toLocaleTimeString('es-CL')}`}
+              className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-lg bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 transition-colors cursor-pointer"
+            >
+              <RotateCcw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin text-emerald-600' : ''}`} />
+              <span className="hidden sm:inline">Sincronizado</span>
+            </button>
+
+            {/* Selector Rápido para Alternar entre Portales */}
+            {onSwitchUser && (
+              <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-lg border border-slate-200 dark:border-slate-700 text-xs">
+                <span className="text-[10px] uppercase font-bold text-slate-500 px-1 hidden md:inline">Ver como:</span>
+                <button
+                  onClick={() => onSwitchUser('admin@mlingenieria.cl')}
+                  className="px-2 py-0.5 rounded bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200 font-medium hover:text-indigo-600 shadow-xs cursor-pointer text-[11px]"
+                  title="Cambiar a Portal Admin (Victoria Villegas)"
+                >
+                  Admin
+                </button>
+                <button
+                  onClick={() => onSwitchUser('smorales@mlingenieria.cl')}
+                  className="px-2 py-0.5 rounded bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200 font-medium hover:text-sky-600 shadow-xs cursor-pointer text-[11px]"
+                  title="Cambiar a Portal Asesor (Sebastián Morales)"
+                >
+                  Asesor
+                </button>
+              </div>
+            )}
           </div>
         </div>
 

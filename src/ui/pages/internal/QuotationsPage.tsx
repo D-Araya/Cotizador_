@@ -58,6 +58,8 @@ export function QuotationsPage(props: QuotationsPageProps) {
   const {
     quotations,
     loading,
+    isSyncing,
+    lastSyncTime,
     error,
     refreshQuotations,
     updateQuotationInList,
@@ -243,6 +245,17 @@ export function QuotationsPage(props: QuotationsPageProps) {
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Botón de Sincronización en Vivo */}
+          <button
+            type="button"
+            onClick={() => refreshQuotations()}
+            disabled={isSyncing}
+            className="px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-medium text-xs hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer shadow-xs flex items-center gap-1.5"
+            title={`Sincronización en vivo. Última actualización: ${lastSyncTime.toLocaleTimeString('es-CL')}`}
+          >
+            <RotateCcw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin text-indigo-600' : 'text-slate-500'}`} />
+            <span className="hidden md:inline text-[11px]">Sincronizar</span>
+          </button>
 
           <button
             type="button"

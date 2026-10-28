@@ -3,12 +3,15 @@ import { dbStore } from '../modules/db/store.js';
 
 export interface PublicQuotationLineDTO {
   id: string;
+  type?: string;
   name: string;
+  skuOrCode?: string;
   description?: string;
   unit: string;
   quantity: number;
   originalUnitPrice?: number;
   unitPrice: number;
+  price?: number;
   discountPct?: number;
   discountAmount?: number;
   subtotal: number;
@@ -104,12 +107,15 @@ export function toPublicQuotationDTO(
 ): PublicQuotationDTO {
   const sanitizedLines: PublicQuotationLineDTO[] = (q.lines || []).map((line: QuotationLine) => ({
     id: line.id,
+    type: line.type || 'SERVICE',
     name: line.name || 'Ítem de Servicio Naval',
+    skuOrCode: line.skuOrCode || '',
     description: line.skuOrCode || '',
     unit: line.unit || 'UND',
     quantity: line.quantity,
     originalUnitPrice: line.originalUnitPrice ?? line.price,
     unitPrice: line.price,
+    price: line.price,
     discountPct: line.discountPct,
     discountAmount: line.discountAmount,
     subtotal: line.subtotal,
