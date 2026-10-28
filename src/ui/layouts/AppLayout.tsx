@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
+import { NavLink, Outlet, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import {
   LayoutDashboard,
   FileText,
@@ -49,6 +49,11 @@ export function AppLayout({
   onSwitchUser,
   isDemoMode = false,
 }: AppLayoutProps) {
+  // Si el usuario es un cliente, nunca debe renderizar el layout interno del staff; redirigir al portal
+  if (user.role === 'CUSTOMER_CONTACT') {
+    return <Navigate to="/portal/dashboard" replace />;
+  }
+
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const location = useLocation();
 

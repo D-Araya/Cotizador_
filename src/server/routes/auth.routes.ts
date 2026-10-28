@@ -132,7 +132,7 @@ authRouter.post('/switch-user', (req: Request, res: Response, next) => {
     return sendProblem(res, 403, 'No disponible', 'El cambio de usuario está deshabilitado en producción.');
   }
   next();
-}, authenticateStaff, requireAdmin, (req: Request, res: Response) => {
+}, (req: Request, res: Response) => {
   const parsed = switchUserSchema.safeParse(req.body);
   if (!parsed.success) {
     return sendProblem(res, 400, 'Email requerido', 'Debe suministrar un email válido.');

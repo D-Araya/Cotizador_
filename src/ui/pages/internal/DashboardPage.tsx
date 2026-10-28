@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { Package, Wrench } from 'lucide-react';
+import { Package, Wrench, CheckCircle2, Clock, DollarSign, XCircle, Send, Eye } from 'lucide-react';
 import { User, CompanySettings } from '../../../modules/types.ts';
 import { formatMoney } from '../../../shared-kernel/formatMoney.ts';
 import { hasPermission } from '../../../shared-kernel/permissions.ts';
@@ -26,7 +26,7 @@ export function DashboardPage(props: DashboardPageProps) {
   if (!user || (loading && !summary)) {
     return (
       <div className="space-y-6">
-        <KpiGridSkeleton />
+        <KpiGridSkeleton count={4} />
         <TableSkeleton rows={6} cols={6} />
       </div>
     );
@@ -96,52 +96,89 @@ export function DashboardPage(props: DashboardPageProps) {
         />
       ) : (
         <div className="space-y-8">
-          {/* KPI Cards */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs">
-              <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
-                Aceptadas
-              </span>
-              <p className="text-2xl font-extrabold text-emerald-600 dark:text-emerald-400 mt-1 font-mono">
+          {/* KPI Cards (Superiores) */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 w-full">
+            <div className="p-5 rounded-2xl bg-white dark:bg-slate-950 border border-emerald-500/40 dark:border-emerald-500/30 relative overflow-hidden shadow-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">
+                  Aceptadas
+                </span>
+                <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />
+              </div>
+              <p className="text-3xl font-extrabold text-slate-900 dark:text-white mt-2 font-mono">
                 {s.totalAccepted}
               </p>
-              <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
                 Tasa de éxito: {s.acceptanceRate}%
               </p>
             </div>
 
-            <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs">
-              <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
-                Enviadas / Vistas
-              </span>
-              <p className="text-2xl font-extrabold text-indigo-600 dark:text-indigo-400 mt-1 font-mono">
-                {(s.totalSent ?? 0) + (s.totalViewed ?? 0)}
+            <div className="p-5 rounded-2xl bg-white dark:bg-slate-950 border border-amber-500/40 dark:border-amber-500/30 relative overflow-hidden shadow-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider">
+                  Enviadas
+                </span>
+                <Send className="w-5 h-5 text-amber-500 shrink-0" />
+              </div>
+              <p className="text-3xl font-extrabold text-slate-900 dark:text-white mt-2 font-mono">
+                {s.totalSent ?? 0}
               </p>
-              <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">
-                {s.totalViewed ?? 0} abiertas por clientes
-              </p>
-            </div>
-
-            <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs">
-              <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
-                Venta Aceptada
-              </span>
-              <p className="text-2xl font-extrabold text-slate-900 dark:text-white mt-1 font-mono">
-                {formatMoney((s as any).totalAcceptedSales ?? (s as any).acceptedValue ?? 0)}
-              </p>
-              <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold mt-0.5">
-                Margen prom: {(s as any).avgMargin ?? (s as any).avgMarginPct ?? 0}%
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                Esperando apertura
               </p>
             </div>
 
-            <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs">
-              <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
-                Rechazadas
-              </span>
-              <p className="text-2xl font-extrabold text-rose-600 dark:text-rose-400 mt-1 font-mono">
+            <div className="p-5 rounded-2xl bg-white dark:bg-slate-950 border border-sky-500/40 dark:border-sky-500/30 relative overflow-hidden shadow-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-sky-600 dark:text-sky-400 uppercase tracking-wider">
+                  Vistas
+                </span>
+                <Eye className="w-5 h-5 text-sky-500 shrink-0" />
+              </div>
+              <p className="text-3xl font-extrabold text-slate-900 dark:text-white mt-2 font-mono">
+                {s.totalViewed ?? 0}
+              </p>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                Abiertas por clientes
+              </p>
+            </div>
+
+            {/* Rechazadas */}
+            <div className="p-5 rounded-2xl bg-white dark:bg-slate-950 border border-rose-500/40 dark:border-rose-500/30 relative overflow-hidden shadow-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-rose-600 dark:text-rose-400 uppercase tracking-wider">
+                  Rechazadas
+                </span>
+                <XCircle className="w-5 h-5 text-rose-500 shrink-0" />
+              </div>
+              <p className="text-3xl font-extrabold text-slate-900 dark:text-white mt-2 font-mono">
                 {(s as any).totalRejected ?? (s as any).rejected ?? 0}
               </p>
-              <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">Con posibilidad de re-cotizar</p>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                Con posibilidad de re-cotizar
+              </p>
+            </div>
+          </div>
+
+          {/* Venta Aceptada (Ancho Completo) */}
+          <div className="p-5 rounded-2xl bg-white dark:bg-slate-950 border border-indigo-500/40 dark:border-indigo-500/30 relative overflow-hidden shadow-xs w-full flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="p-3 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800/60 text-indigo-600 dark:text-indigo-400 shrink-0">
+                <DollarSign className="w-6 h-6 text-indigo-500" />
+              </div>
+              <div>
+                <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">
+                  Venta Aceptada
+                </span>
+                <p className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white font-mono mt-0.5">
+                  {formatMoney((s as any).totalAcceptedSales ?? (s as any).acceptedValue ?? 0)}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center sm:self-center">
+              <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-300 dark:border-emerald-700/60 text-emerald-700 dark:text-emerald-300 text-xs font-semibold">
+                Margen prom: <strong className="font-bold font-mono">{(s as any).avgMargin ?? (s as any).avgMarginPct ?? 0}%</strong>
+              </span>
             </div>
           </div>
 

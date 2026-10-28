@@ -25,7 +25,8 @@ export function ProtectedRoute({
 
   if (permission && !hasPermission(user, permission)) {
     // User lacks required permission (e.g. SALES_REP accessing /app/team)
-    return <Navigate to={redirectTo || '/app/dashboard'} replace />;
+    const defaultFallback = user.role === 'CUSTOMER_CONTACT' ? '/portal/dashboard' : '/app/dashboard';
+    return <Navigate to={redirectTo || defaultFallback} replace />;
   }
 
   return children;

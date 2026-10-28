@@ -165,10 +165,10 @@ function AppRoutes() {
       setCurrentUser(res.data.user);
 
       const targetPath = (location.state as any)?.from?.pathname;
-      if (targetPath) {
-        navigate(targetPath, { replace: true });
-      } else if (res.data.user.role === 'CUSTOMER_CONTACT') {
+      if (res.data.user.role === 'CUSTOMER_CONTACT') {
         navigate('/portal/dashboard', { replace: true });
+      } else if (targetPath && !targetPath.startsWith('/portal')) {
+        navigate(targetPath, { replace: true });
       } else {
         navigate('/app/dashboard', { replace: true });
       }
@@ -211,13 +211,28 @@ function AppRoutes() {
       setAuthToken(res.data.token);
       setActiveApiUser(res.data.user);
       setCurrentUser(res.data.user);
-      if (res.data.user.role === 'CUSTOMER_CONTACT') {
-        navigate('/portal/dashboard', { replace: true });
-      } else {
-        navigate('/app/dashboard', { replace: true });
-      }
+      const target = res.data.user.role === 'CUSTOMER_CONTACT' ? '/portal/dashboard' : '/app/dashboard';
+      navigate(target, { replace: true });
     } else {
-      handleLogin(email, 'admin123');
+      // Fallback por login directo
+      setLoginLoading(true);
+      const loginRes = await apiRequest<{ user: UserType; token: string; role: string; redirectTo: string }>(
+        '/api/v1/auth/login',
+        {
+          method: 'POST',
+          body: JSON.stringify({ email, password: 'admin123' }),
+        }
+      );
+      setLoginLoading(false);
+      if (loginRes.data?.user && loginRes.data?.token) {
+        setAuthToken(loginRes.data.token);
+        setActiveApiUser(loginRes.data.user);
+        setCurrentUser(loginRes.data.user);
+        const target = loginRes.data.user.role === 'CUSTOMER_CONTACT' ? '/portal/dashboard' : '/app/dashboard';
+        navigate(target, { replace: true });
+      } else {
+        setLoginError(loginRes.error?.detail || 'Error al cambiar de cuenta.');
+      }
     }
   }
 
@@ -263,27 +278,35 @@ function AppRoutes() {
         <Route
           path="/portal"
           element={
-            <ProtectedRoute user={currentUser} redirectTo="/login">
-              <ClientPortal
-                user={currentUser!}
-                onLogout={handleLogout}
-                onOpenPublicLink={(tok) => navigate(`/q/${tok}`)}
-                onSwitchUser={handleSwitchUser}
-              />
-            </ProtectedRoute>
+            currentUser && currentUser.role !== 'CUSTOMER_CONTACT' ? (
+              <Navigate to="/app/dashboard" replace />
+            ) : (
+              <ProtectedRoute user={currentUser} redirectTo="/login">
+                <ClientPortal
+                  user={currentUser!}
+                  onLogout={handleLogout}
+                  onOpenPublicLink={(tok) => navigate(`/q/${tok}`)}
+                  onSwitchUser={handleSwitchUser}
+                />
+              </ProtectedRoute>
+            )
           }
         />
         <Route
           path="/portal/:tab"
           element={
-            <ProtectedRoute user={currentUser} redirectTo="/login">
-              <ClientPortal
-                user={currentUser!}
-                onLogout={handleLogout}
-                onOpenPublicLink={(tok) => navigate(`/q/${tok}`)}
-                onSwitchUser={handleSwitchUser}
-              />
-            </ProtectedRoute>
+            currentUser && currentUser.role !== 'CUSTOMER_CONTACT' ? (
+              <Navigate to="/app/dashboard" replace />
+            ) : (
+              <ProtectedRoute user={currentUser} redirectTo="/login">
+                <ClientPortal
+                  user={currentUser!}
+                  onLogout={handleLogout}
+                  onOpenPublicLink={(tok) => navigate(`/q/${tok}`)}
+                  onSwitchUser={handleSwitchUser}
+                />
+              </ProtectedRoute>
+            )
           }
         />
 
@@ -291,15 +314,19 @@ function AppRoutes() {
         <Route
           path="/app"
           element={
-            <ProtectedRoute user={currentUser} redirectTo="/login">
-              <AppLayout
-                user={currentUser!}
-                onLogout={handleLogout}
-                onOpenPublicLink={(tok) => navigate(`/q/${tok}`)}
-                onSwitchUser={handleSwitchUser}
-                isDemoMode={isDemoMode}
-              />
-            </ProtectedRoute>
+            currentUser?.role === 'CUSTOMER_CONTACT' ? (
+              <Navigate to="/portal/dashboard" replace />
+            ) : (
+              <ProtectedRoute user={currentUser} redirectTo="/login">
+                <AppLayout
+                  user={currentUser!}
+                  onLogout={handleLogout}
+                  onOpenPublicLink={(tok) => navigate(`/q/${tok}`)}
+                  onSwitchUser={handleSwitchUser}
+                  isDemoMode={isDemoMode}
+                />
+              </ProtectedRoute>
+            )
           }
         >
           <Route index element={<Navigate to="/app/dashboard" replace />} />
