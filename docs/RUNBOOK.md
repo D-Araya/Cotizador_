@@ -11,7 +11,7 @@ El sistema opera bajo Node.js / Express BFF y Vite. Las variables de entorno req
 | Variable | Requerida | Propósito / Descripción | Ejemplo / Valor por defecto |
 |---|---|---|---|
 | `SESSION_SECRET` | **Sí** (Producción) | Clave criptográfica para firmar JWTs y cookies de sesión HMAC SHA-256 | `c839f28a7b924...` (mínimo 32 caracteres) |
-| `GEMINI_API_KEY` | Opcional | Clave para llamadas a Gemini (@google/genai) para análisis multimodal y TTS | Obtenida desde Google AI Studio |
+| `GEMINI_API_KEY` | Opcional | Clave para llamadas a Gemini (@google/genai) para análisis multimodal y chat | Obtenida desde Google AI Studio |
 | `GEMINI_MODEL` | Opcional | Modelo de visión / extracción documental | `gemini-2.5-flash` |
 | `PORT` | Opcional | Puerto del servidor Express BFF | `3000` (Fijo en AI Studio) |
 | `SMTP_HOST` | Opcional | Servidor SMTP para despacho real de correos de cotizaciones | `smtp.resend.com` / `smtp.sendgrid.net` |

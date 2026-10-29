@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { apiRequest } from '../api.ts';
 import { formatMoney } from '../../shared-kernel/formatMoney.ts';
+import { hasPermission } from '../../shared-kernel/permissions.ts';
 import { CompanySettings, User as UserType } from '../../modules/types.ts';
 
 interface PipelineKpiMetricsProps {
@@ -26,7 +27,10 @@ export function PipelineKpiMetrics({
   const [probChanges, setProbChanges] = useState<number>(40);
   const [savingConfig, setSavingConfig] = useState<boolean>(false);
 
-  const fetchMetrics = async () => {
+  const isGlobalAdmin = currentUser.role === 'ADMIN' && hasPermission(currentUser, 'dashboard:global');
+  const canViewAllReps = currentUser.role === 'ADMIN' && hasPermission(currentUser, 'dashboard:by_sales_rep');
+
+  const fetchMetrics = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -47,11 +51,11 @@ export function PipelineKpiMetrics({
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentUser.id, currentUser.role]);
 
   useEffect(() => {
     fetchMetrics();
-  }, []);
+  }, [fetchMetrics]);
 
   const handleSaveProbabilities = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -78,7 +82,7 @@ export function PipelineKpiMetrics({
       await fetchMetrics();
       if (onCompanyUpdated) onCompanyUpdated();
     } catch (err: any) {
-      alert(err.message || 'Error al guardar probabilidades del pipeline');
+      setError(err.message || 'Error al guardar probabilidades del pipeline');
     } finally {
       setSavingConfig(false);
     }
@@ -117,14 +121,19 @@ export function PipelineKpiMetrics({
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white dark:bg-slate-800/80 p-5 rounded-xl border border-slate-200 dark:border-slate-700/80 shadow-xs">
         <div>
           <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-            <span>📊</span> Métricas de Pipeline & KPIs Comerciales
+            <span>📊</span>{' '}
+            {isGlobalAdmin
+              ? 'Métricas de Pipeline & KPIs Comerciales (Consolidado Global)'
+              : 'Mis Métricas de Pipeline & KPIs Personales'}
           </h3>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            Todos los indicadores son calculados íntegramente por el servidor según datos auditados.
+            {isGlobalAdmin
+              ? 'Todos los indicadores son calculados íntegramente por el servidor según datos auditados de todo el equipo.'
+              : `Indicadores calculados exclusivamente sobre las cotizaciones gestionadas por ${currentUser.name}.`}
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {currentUser.role === 'ADMIN' && (
+          {isGlobalAdmin && (
             <button
               onClick={() => setShowConfigModal(true)}
               className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 text-xs font-semibold rounded-lg border border-slate-300 dark:border-slate-600 transition flex items-center gap-1.5 cursor-pointer"
@@ -271,12 +280,15 @@ export function PipelineKpiMetrics({
       </div>
 
       {/* Tablas de Ganadas/Perdidas por Categoría y por Asesor (P2.i 7) */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className={`grid grid-cols-1 ${canViewAllReps ? 'lg:grid-cols-2' : ''} gap-6`}>
         {/* Ganadas / Perdidas por Categoría */}
         <div className="bg-white dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700/80 rounded-xl p-5 shadow-xs space-y-4">
           <div>
             <h4 className="font-bold text-sm text-slate-900 dark:text-slate-100 flex items-center gap-2">
-              <span>🏷️</span> Ganadas / Perdidas por Categoría Técnica
+              <span>🏷️</span>{' '}
+              {isGlobalAdmin
+                ? 'Ganadas / Perdidas por Categoría Técnica'
+                : 'Mis Cotizaciones Ganadas / Perdidas por Categoría Técnica'}
             </h4>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 italic">
               {wonLostByCategory.definition}
@@ -307,42 +319,44 @@ export function PipelineKpiMetrics({
           </div>
         </div>
 
-        {/* Ganadas / Perdidas por Asesor */}
-        <div className="bg-white dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700/80 rounded-xl p-5 shadow-xs space-y-4">
-          <div>
-            <h4 className="font-bold text-sm text-slate-900 dark:text-slate-100 flex items-center gap-2">
-              <span>👤</span> Ganadas / Perdidas por Asesor
-            </h4>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 italic">
-              {wonLostBySalesRep.definition}
-            </p>
-          </div>
+        {/* Ganadas / Perdidas por Asesor (Exclusivo para Administrador) */}
+        {canViewAllReps && (
+          <div className="bg-white dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700/80 rounded-xl p-5 shadow-xs space-y-4">
+            <div>
+              <h4 className="font-bold text-sm text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                <span>👤</span> Ganadas / Perdidas por Asesor
+              </h4>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 italic">
+                {wonLostBySalesRep.definition}
+              </p>
+            </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs text-slate-700 dark:text-slate-300">
-              <thead className="bg-slate-100 dark:bg-slate-900/80 text-slate-600 dark:text-slate-400 uppercase text-[10px]">
-                <tr>
-                  <th className="py-2.5 px-3">Asesor</th>
-                  <th className="py-2.5 px-2 text-center text-emerald-600 dark:text-emerald-400">Ganadas</th>
-                  <th className="py-2.5 px-2 text-center text-rose-600 dark:text-rose-400">Perdidas</th>
-                  <th className="py-2.5 px-2 text-center">Cierre</th>
-                  <th className="py-2.5 px-3 text-right">Total Ganado</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-700/60">
-                {wonLostBySalesRep.items.map((rep: any) => (
-                  <tr key={rep.salesRepId} className="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">
-                    <td className="py-2.5 px-3 font-medium text-slate-800 dark:text-slate-200">{rep.salesRepName}</td>
-                    <td className="py-2.5 px-2 text-center font-bold text-emerald-600 dark:text-emerald-400">{rep.wonCount}</td>
-                    <td className="py-2.5 px-2 text-center font-bold text-rose-600 dark:text-rose-400">{rep.lostCount}</td>
-                    <td className="py-2.5 px-2 text-center font-semibold text-cyan-600 dark:text-cyan-400">{rep.closeRatePct}%</td>
-                    <td className="py-2.5 px-3 text-right font-semibold text-slate-900 dark:text-slate-100 font-mono">{formatMoney(rep.wonAmount)}</td>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs text-slate-700 dark:text-slate-300">
+                <thead className="bg-slate-100 dark:bg-slate-900/80 text-slate-600 dark:text-slate-400 uppercase text-[10px]">
+                  <tr>
+                    <th className="py-2.5 px-3">Asesor</th>
+                    <th className="py-2.5 px-2 text-center text-emerald-600 dark:text-emerald-400">Ganadas</th>
+                    <th className="py-2.5 px-2 text-center text-rose-600 dark:text-rose-400">Perdidas</th>
+                    <th className="py-2.5 px-2 text-center">Cierre</th>
+                    <th className="py-2.5 px-3 text-right">Total Ganado</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-700/60">
+                  {wonLostBySalesRep.items.map((rep: any) => (
+                    <tr key={rep.salesRepId} className="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">
+                      <td className="py-2.5 px-3 font-medium text-slate-800 dark:text-slate-200">{rep.salesRepName}</td>
+                      <td className="py-2.5 px-2 text-center font-bold text-emerald-600 dark:text-emerald-400">{rep.wonCount}</td>
+                      <td className="py-2.5 px-2 text-center font-bold text-rose-600 dark:text-rose-400">{rep.lostCount}</td>
+                      <td className="py-2.5 px-2 text-center font-semibold text-cyan-600 dark:text-cyan-400">{rep.closeRatePct}%</td>
+                      <td className="py-2.5 px-3 text-right font-semibold text-slate-900 dark:text-slate-100 font-mono">{formatMoney(rep.wonAmount)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Modal para configurar probabilidades del pipeline (ADMIN) */}

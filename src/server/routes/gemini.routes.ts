@@ -2,7 +2,7 @@ import express, { Request, Response } from 'express';
 import { GoogleGenAI } from '@google/genai';
 import { authenticateStaff, requireStaff } from '../middleware/auth.js';
 import { geminiLimiter, sendProblem } from '../security.js';
-import { geminiChatSchema, geminiAnalyzeSchema, geminiTtsSchema } from '../schemas.js';
+import { geminiChatSchema, geminiAnalyzeSchema } from '../schemas.js';
 import { dbStore } from '../../modules/db/store.js';
 
 export const geminiRouter = express.Router();
@@ -21,7 +21,6 @@ const ai = new GoogleGenAI({
 
 // Modelos cerrados desde variables de entorno con defaults válidos
 const FLASH_MODEL = process.env.GEMINI_FLASH_MODEL || 'gemini-2.5-flash';
-const TTS_MODEL = process.env.GEMINI_TTS_MODEL || 'gemini-2.5-flash';
 
 const systemInstruction = `Eres el "Asesor Comercial y Consultor Técnico de Ingeniería IA" del sistema Cotizador Online para M&L Ingeniería Naval SpA en Chile.
 Tienes conocimiento profundo de:
@@ -71,61 +70,6 @@ geminiRouter.post('/chat', async (req: Request, res: Response) => {
   } catch (err) {
     // Responder con error genérico sin exponer trazas internas ni llaves de API
     res.status(500).json({ error: 'No fue posible completar la consulta con el asistente de IA.' });
-  }
-});
-
-/**
- * POST /api/v1/gemini/tts
- */
-geminiRouter.post('/tts', async (req: Request, res: Response) => {
-  const parsed = geminiTtsSchema.safeParse(req.body);
-  if (!parsed.success) {
-    return sendProblem(res, 400, 'Datos inválidos', parsed.error.issues[0]?.message || 'Texto requerido');
-  }
-
-  const { text } = parsed.data;
-
-  try {
-    const response = await ai.models.generateContent({
-      model: TTS_MODEL,
-      contents: [
-        {
-          role: 'user',
-          parts: [
-            {
-              text: text.trim(),
-              speechMetadata: {
-                style: 'Professional, articulate naval engineering advisor in Spanish',
-              },
-            },
-          ],
-        },
-      ],
-      config: {
-        responseModalities: ['AUDIO'],
-        speechConfig: {
-          voiceConfig: {
-            prebuiltVoiceConfig: { voiceName: 'Kore' },
-          },
-        },
-      },
-    });
-
-    const inlineData = response.candidates?.[0]?.content?.parts?.[0]?.inlineData;
-    const base64Audio = inlineData?.data;
-    if (!base64Audio) {
-      return res.status(500).json({ error: 'No se generó audio en la respuesta del modelo.' });
-    }
-
-    // Usa el mimeType real del audio devuelto por el servicio
-    const actualMimeType = inlineData.mimeType || 'audio/wav';
-
-    res.json({
-      audioBase64: base64Audio,
-      mimeType: actualMimeType,
-    });
-  } catch (err) {
-    res.status(500).json({ error: 'No fue posible generar el audio con el servicio de voz.' });
   }
 });
 

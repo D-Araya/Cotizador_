@@ -1,17 +1,86 @@
 import express, { Request, Response } from 'express';
 import { dbStore } from '../../modules/db/store.js';
+import { Quotation } from '../../modules/types.js';
 import { authenticateStaff } from '../middleware/auth.js';
+import { sendProblem } from '../security.js';
+import { hasPermission } from '../../shared-kernel/permissions.js';
 
 export const dashboardRouter = express.Router();
 
 dashboardRouter.use(authenticateStaff);
 
+function computeItemTypeBreakdown(quotes: Quotation[]) {
+  let productCount = 0;
+  let serviceCount = 0;
+  let productSales = 0;
+  let serviceSales = 0;
+  let productCost = 0;
+  let serviceCost = 0;
+
+  for (const q of quotes) {
+    if (q.status !== 'ACCEPTED') continue;
+    for (const l of q.lines) {
+      const lineCost = l.costTotal ?? ((l.cost || 0) * (l.quantity || 1));
+      const lineSubtotal = l.subtotal ?? ((l.price || 0) * (l.quantity || 1));
+      if (l.type === 'SERVICE') {
+        serviceCount += l.quantity || 1;
+        serviceSales += lineSubtotal;
+        serviceCost += lineCost;
+      } else {
+        productCount += l.quantity || 1;
+        productSales += lineSubtotal;
+        productCost += lineCost;
+      }
+    }
+  }
+
+  const productProfit = productSales - productCost;
+  const serviceProfit = serviceSales - serviceCost;
+  const productMargin = productSales > 0 ? Number(((productProfit / productSales) * 100).toFixed(1)) : 0;
+  const serviceMargin = serviceSales > 0 ? Number(((serviceProfit / serviceSales) * 100).toFixed(1)) : 0;
+
+  return {
+    products: {
+      count: productCount,
+      revenue: productSales,
+      sales: productSales,
+      cost: productCost,
+      profit: productProfit,
+      marginPct: productMargin,
+    },
+    services: {
+      count: serviceCount,
+      revenue: serviceSales,
+      sales: serviceSales,
+      cost: serviceCost,
+      profit: serviceProfit,
+      marginPct: serviceMargin,
+    },
+  };
+}
+
 dashboardRouter.get('/dashboard/summary', (req: Request, res: Response) => {
   const state = dbStore.getState();
+  const isGlobalAdmin = req.user?.role === 'ADMIN' && hasPermission(req.user, 'dashboard:global');
+  const requestedSalesRepId = typeof req.query.salesRepId === 'string' ? req.query.salesRepId : undefined;
+
+  if (!isGlobalAdmin) {
+    if (requestedSalesRepId && requestedSalesRepId !== req.user?.id) {
+      return sendProblem(
+        res,
+        403,
+        'Acceso denegado',
+        'Un asesor comercial solo tiene permiso para consultar su propio resumen y métricas personales.'
+      );
+    }
+  }
+
   let quotes = [...state.quotations];
 
-  if (req.query.salesRepId) {
-    quotes = quotes.filter((q) => q.salesRepId === req.query.salesRepId);
+  if (!isGlobalAdmin) {
+    quotes = quotes.filter((q) => q.salesRepId === req.user?.id);
+  } else if (requestedSalesRepId) {
+    quotes = quotes.filter((q) => q.salesRepId === requestedSalesRepId);
   }
 
   const totalQuotations = quotes.length;
@@ -36,7 +105,22 @@ dashboardRouter.get('/dashboard/summary', (req: Request, res: Response) => {
   const totalProfit = netSubtotal - totalCost;
   const avgMargin = netSubtotal > 0 ? Number(((totalProfit / netSubtotal) * 100).toFixed(1)) : 0;
 
+  const isFilteredByRep = !isGlobalAdmin || Boolean(requestedSalesRepId);
+  const quoteIds = new Set(quotes.map((q) => q.id));
+
+  const activeOperations = isFilteredByRep
+    ? state.operations.filter((o) => o.status !== 'COMPLETED' && quoteIds.has(o.quotationId)).length
+    : state.operations.filter((o) => o.status !== 'COMPLETED').length;
+
+  const pendingInvoices = isFilteredByRep
+    ? state.invoices.filter((i) => i.status === 'ISSUED' && quoteIds.has(i.quotationId)).length
+    : state.invoices.filter((i) => i.status === 'ISSUED').length;
+
+  const itemTypeBreakdown = computeItemTypeBreakdown(quotes);
+
   res.json({
+    scope: isFilteredByRep ? 'PERSONAL' : 'GLOBAL',
+    salesRepId: !isGlobalAdmin ? req.user?.id : (requestedSalesRepId || null),
     totalQuotations,
     totalQuotes: totalQuotations,
     accepted,
@@ -55,15 +139,27 @@ dashboardRouter.get('/dashboard/summary', (req: Request, res: Response) => {
     avgMargin,
     avgMarginPct: avgMargin,
     totalProfit,
-    activeOperations: state.operations.filter((o) => o.status !== 'COMPLETED').length,
-    pendingInvoices: state.invoices.filter((i) => i.status === 'ISSUED').length,
+    activeOperations,
+    pendingInvoices,
+    itemTypeBreakdown,
   });
 });
 
-dashboardRouter.get('/dashboard/by-sales-rep', (req: Request, res: Response) => {
+dashboardRouter.get(['/dashboard/by-sales-rep', '/dashboard/sales-reps'], (req: Request, res: Response) => {
   const state = dbStore.getState();
+  const canViewAllReps = req.user?.role === 'ADMIN' && hasPermission(req.user, 'dashboard:by_sales_rep');
+  const requestedSalesRepId = typeof req.query.salesRepId === 'string' ? req.query.salesRepId : undefined;
 
-  if (req.user?.role === 'SALES_REP') {
+  if (!canViewAllReps) {
+    if (requestedSalesRepId && requestedSalesRepId !== req.user?.id) {
+      return sendProblem(
+        res,
+        403,
+        'Acceso denegado',
+        'Un asesor comercial no tiene permiso para consultar las métricas de otros asesores ni del administrador.'
+      );
+    }
+
     const rep = state.users.find((u) => u.id === req.user?.id);
     if (!rep) return res.json([]);
     const repQuotes = state.quotations.filter((q) => q.salesRepId === rep.id);
@@ -114,7 +210,11 @@ dashboardRouter.get('/dashboard/by-sales-rep', (req: Request, res: Response) => 
     }
   }
 
-  const report = salesReps.map((rep) => {
+  const targetReps = requestedSalesRepId
+    ? salesReps.filter((r) => r.id === requestedSalesRepId)
+    : salesReps;
+
+  const report = targetReps.map((rep) => {
     const repQuotes = state.quotations.filter((q) => q.salesRepId === rep.id);
     const total = repQuotes.length;
     const accepted = repQuotes.filter((q) => q.status === 'ACCEPTED').length;
@@ -156,55 +256,28 @@ dashboardRouter.get('/dashboard/by-sales-rep', (req: Request, res: Response) => 
   res.json(report);
 });
 
-dashboardRouter.get('/dashboard/by-item-type', (_req: Request, res: Response) => {
+dashboardRouter.get('/dashboard/by-item-type', (req: Request, res: Response) => {
   const state = dbStore.getState();
-  let productCount = 0;
-  let serviceCount = 0;
-  let productSales = 0;
-  let serviceSales = 0;
-  let productCost = 0;
-  let serviceCost = 0;
+  const isGlobalAdmin = req.user?.role === 'ADMIN' && hasPermission(req.user, 'dashboard:global');
+  const requestedSalesRepId = typeof req.query.salesRepId === 'string' ? req.query.salesRepId : undefined;
 
-  for (const q of state.quotations) {
-    if (q.status !== 'ACCEPTED') continue;
-    for (const l of q.lines) {
-      const lineCost = l.costTotal ?? ((l.cost || 0) * (l.quantity || 1));
-      const lineSubtotal = l.subtotal ?? ((l.price || 0) * (l.quantity || 1));
-      if (l.type === 'SERVICE') {
-        serviceCount += l.quantity || 1;
-        serviceSales += lineSubtotal;
-        serviceCost += lineCost;
-      } else {
-        productCount += l.quantity || 1;
-        productSales += lineSubtotal;
-        productCost += lineCost;
-      }
-    }
+  if (!isGlobalAdmin && requestedSalesRepId && requestedSalesRepId !== req.user?.id) {
+    return sendProblem(
+      res,
+      403,
+      'Acceso denegado',
+      'Un asesor comercial solo tiene permiso para consultar sus propias métricas por tipo de ítem.'
+    );
   }
 
-  const productProfit = productSales - productCost;
-  const serviceProfit = serviceSales - serviceCost;
-  const productMargin = productSales > 0 ? Number(((productProfit / productSales) * 100).toFixed(1)) : 0;
-  const serviceMargin = serviceSales > 0 ? Number(((serviceProfit / serviceSales) * 100).toFixed(1)) : 0;
+  let quotes = [...state.quotations];
+  if (!isGlobalAdmin) {
+    quotes = quotes.filter((q) => q.salesRepId === req.user?.id);
+  } else if (requestedSalesRepId) {
+    quotes = quotes.filter((q) => q.salesRepId === requestedSalesRepId);
+  }
 
-  res.json({
-    products: {
-      count: productCount,
-      revenue: productSales,
-      sales: productSales,
-      cost: productCost,
-      profit: productProfit,
-      marginPct: productMargin,
-    },
-    services: {
-      count: serviceCount,
-      revenue: serviceSales,
-      sales: serviceSales,
-      cost: serviceCost,
-      profit: serviceProfit,
-      marginPct: serviceMargin,
-    },
-  });
+  res.json(computeItemTypeBreakdown(quotes));
 });
 
 /**
@@ -222,10 +295,24 @@ dashboardRouter.get('/dashboard/pipeline-metrics', (req: Request, res: Response)
   const state = dbStore.getState();
   const company = state.company;
   const now = Date.now();
+  const isGlobalAdmin = req.user?.role === 'ADMIN' && hasPermission(req.user, 'dashboard:global');
+  const canViewAllReps = req.user?.role === 'ADMIN' && hasPermission(req.user, 'dashboard:by_sales_rep');
+  const requestedSalesRepId = typeof req.query.salesRepId === 'string' ? req.query.salesRepId : undefined;
+
+  if (!isGlobalAdmin && requestedSalesRepId && requestedSalesRepId !== req.user?.id) {
+    return sendProblem(
+      res,
+      403,
+      'Acceso denegado',
+      'Un asesor comercial solo tiene permiso para consultar sus propias métricas y KPIs de pipeline.'
+    );
+  }
 
   let quotes = [...state.quotations];
-  if (req.user?.role === 'SALES_REP') {
+  if (!isGlobalAdmin) {
     quotes = quotes.filter((q) => q.salesRepId === req.user?.id);
+  } else if (requestedSalesRepId) {
+    quotes = quotes.filter((q) => q.salesRepId === requestedSalesRepId);
   }
 
   // 1. Tasa de cierre = aceptadas / (aceptadas + rechazadas)
@@ -372,9 +459,12 @@ dashboardRouter.get('/dashboard/pipeline-metrics', (req: Request, res: Response)
 
   const wonLostByCategory = Array.from(categoryMap.values());
 
-  // 8. Ganadas/perdidas por asesor
-  const salesReps = state.users.filter((u) => (u.role === 'SALES_REP' || u.role === 'ADMIN') && !u.deletedAt);
-  const wonLostBySalesRep = salesReps.map((rep) => {
+  // 8. Ganadas/perdidas por asesor (restringido al propio asesor si no es ADMIN)
+  const visibleSalesReps = canViewAllReps
+    ? state.users.filter((u) => (u.role === 'SALES_REP' || u.role === 'ADMIN') && !u.deletedAt && (!requestedSalesRepId || u.id === requestedSalesRepId))
+    : state.users.filter((u) => u.id === req.user?.id && !u.deletedAt);
+
+  const wonLostBySalesRep = visibleSalesReps.map((rep) => {
     const repQuotes = state.quotations.filter((q) => q.salesRepId === rep.id);
     const won = repQuotes.filter((q) => q.status === 'ACCEPTED');
     const lost = repQuotes.filter((q) => q.status === 'REJECTED');
@@ -395,6 +485,8 @@ dashboardRouter.get('/dashboard/pipeline-metrics', (req: Request, res: Response)
   });
 
   res.json({
+    scope: !isGlobalAdmin || Boolean(requestedSalesRepId) ? 'PERSONAL' : 'GLOBAL',
+    salesRepId: !isGlobalAdmin ? req.user?.id : (requestedSalesRepId || null),
     closeRate: {
       value: closeRatePct,
       acceptedCount: acceptedQuotes.length,

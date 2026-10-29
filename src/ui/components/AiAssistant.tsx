@@ -3,7 +3,6 @@ import {
   Sparkles,
   MessageSquare,
   FileSearch,
-  Volume2,
   X,
   Send,
   Loader2,
@@ -26,7 +25,7 @@ interface ChatMessage {
 }
 
 export function AiAssistant({ isOpen, onClose }: AiAssistantProps) {
-  const [tab, setTab] = useState<'chat' | 'analyze' | 'tts'>('chat');
+  const [tab, setTab] = useState<'chat' | 'analyze'>('chat');
 
   // Chat State
   const [selectedModel, setSelectedModel] = useState<string>('gemini-3.5-flash');
@@ -48,13 +47,6 @@ export function AiAssistant({ isOpen, onClose }: AiAssistantProps) {
   );
   const [analysisResult, setAnalysisResult] = useState<string | null>(null);
   const [analyzeLoading, setAnalyzeLoading] = useState<boolean>(false);
-
-  // TTS State
-  const [ttsText, setTtsText] = useState<string>(
-    'Estimado cliente, nos complace presentarle nuestra propuesta técnica de ingeniería naval con estricto apego a las normativas de DIRECTEMAR y casas clasificadoras. Quedamos a su entera disposición.'
-  );
-  const [ttsLoading, setTtsLoading] = useState<boolean>(false);
-  const [isPlayingAudio, setIsPlayingAudio] = useState<boolean>(false);
 
   useEffect(() => {
     if (chatScrollRef.current) {
@@ -127,30 +119,6 @@ export function AiAssistant({ isOpen, onClose }: AiAssistantProps) {
     }
   }
 
-  async function handlePlayTTS() {
-    if (!ttsText.trim() || ttsLoading) return;
-    setTtsLoading(true);
-
-    try {
-      const res = await apiRequest<{ audioBase64: string }>('/api/v1/gemini/tts', {
-        method: 'POST',
-        body: JSON.stringify({ text: ttsText.trim() }),
-      });
-
-      setTtsLoading(false);
-      if (res.data?.audioBase64) {
-        const audio = new Audio(`data:audio/wav;base64,${res.data.audioBase64}`);
-        setIsPlayingAudio(true);
-        audio.play();
-        audio.onended = () => setIsPlayingAudio(false);
-      }
-    } catch (err) {
-      setTtsLoading(false);
-      setIsPlayingAudio(false);
-      console.error(err);
-    }
-  }
-
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/60 dark:bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4">
       <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] flex flex-col overflow-hidden border border-slate-200 dark:border-slate-800 transition-colors">
@@ -162,7 +130,7 @@ export function AiAssistant({ isOpen, onClose }: AiAssistantProps) {
             </div>
             <div>
               <h2 className="font-extrabold text-base tracking-tight">Asistente Inteligente Gemini</h2>
-              <p className="text-xs text-indigo-200">Chat comercial, análisis de requerimientos y síntesis de voz</p>
+              <p className="text-xs text-indigo-200">Chat comercial y análisis técnico de requerimientos</p>
             </div>
           </div>
 
@@ -198,18 +166,6 @@ export function AiAssistant({ isOpen, onClose }: AiAssistantProps) {
           >
             <FileSearch className="w-4 h-4" />
             Analizar Fotos y Documentos
-          </button>
-
-          <button
-            onClick={() => setTab('tts')}
-            className={`px-4 py-2.5 text-xs font-bold border-b-2 transition-all flex items-center gap-2 cursor-pointer ${
-              tab === 'tts'
-                ? 'border-indigo-600 text-indigo-700 dark:text-indigo-400 bg-white dark:bg-slate-900 rounded-t-lg'
-                : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
-            }`}
-          >
-            <Volume2 className="w-4 h-4" />
-            Voz y Locución (TTS 3.8)
           </button>
         </div>
 
@@ -382,68 +338,6 @@ export function AiAssistant({ isOpen, onClose }: AiAssistantProps) {
                   <h4 className="font-bold text-xs text-slate-800 dark:text-slate-200">Resultado del Análisis:</h4>
                   <div className="text-xs text-slate-700 dark:text-slate-300 whitespace-pre-line leading-relaxed">
                     {analysisResult}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* TAB 3: TTS */}
-          {tab === 'tts' && (
-            <div className="h-full overflow-y-auto space-y-4 max-h-[60vh]">
-              <div>
-                <h3 className="font-bold text-slate-800 dark:text-white text-sm">
-                  Síntesis de Voz Profesional (Gemini 3.8 Flash TTS)
-                </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Genere audios ejecutivos en español con entonación comercial realista utilizando el modelo oficial{' '}
-                  <code className="text-indigo-600 dark:text-indigo-400 font-mono">gemini-3.8-flash-tts</code>.
-                </p>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Texto a sintetizar:</label>
-                <textarea
-                  rows={4}
-                  value={ttsText}
-                  onChange={(e) => setTtsText(e.target.value)}
-                  className="w-full p-3 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-indigo-500 leading-relaxed"
-                />
-              </div>
-
-              <button
-                onClick={handlePlayTTS}
-                disabled={ttsLoading || isPlayingAudio}
-                className="w-full py-3 rounded-xl bg-indigo-600 text-white font-bold text-xs hover:bg-indigo-700 transition-colors disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2 shadow-md"
-              >
-                {ttsLoading ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Sintetizando audio de voz con Gemini...
-                  </>
-                ) : isPlayingAudio ? (
-                  <>
-                    <Volume2 className="w-4 h-4 animate-pulse text-emerald-300" />
-                    Reproduciendo audio...
-                  </>
-                ) : (
-                  <>
-                    <Volume2 className="w-4 h-4" />
-                    Generar y Escuchar Audio (WAV 24kHz)
-                  </>
-                )}
-              </button>
-
-              {ttsLoading && (
-                <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-3">
-                  <div className="flex items-center gap-2 text-xs font-semibold text-indigo-600 dark:text-indigo-400">
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Gemini 3.8 Flash TTS generando ondas de audio (24kHz)...</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Skeleton className="h-8 w-8 rounded-full shrink-0" />
-                    <Skeleton className="h-3 flex-1 rounded-full" />
-                    <Skeleton className="h-3 w-12" />
                   </div>
                 </div>
               )}

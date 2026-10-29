@@ -10,7 +10,7 @@ describe('formatMoney utility', () => {
     expect(formatMoney(undefined, 'CLP')).toBe('$ 0');
   });
 
-  it('formatea texto hablado para voz (TTS)', () => {
+  it('formatea montos en formato verbal extendido', () => {
     expect(formatMoneySpoken(1500000, 'CLP')).toBe('1.500.000 pesos chilenos');
   });
 

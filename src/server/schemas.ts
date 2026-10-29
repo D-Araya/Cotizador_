@@ -344,10 +344,6 @@ export const geminiAnalyzeSchema = z.object({
   prompt: z.string().max(2000).optional(),
 });
 
-export const geminiTtsSchema = z.object({
-  text: z.string().trim().min(1, 'Texto requerido para síntesis de voz').max(2000, 'El texto excede el máximo permitido para síntesis de voz'),
-});
-
 // ==========================================
 // BACKUP & RESTORE SCHEMA (ZOD VALIDATED)
 // ==========================================

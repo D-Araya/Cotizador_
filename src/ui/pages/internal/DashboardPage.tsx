@@ -21,7 +21,7 @@ export function DashboardPage(props: DashboardPageProps) {
   const company = props.company !== undefined ? props.company : context.company;
   const onCompanyUpdated = props.onCompanyUpdated || context.onRefreshRelatedData;
   const [subView, setSubView] = useState<'general' | 'kpis'>('general');
-  const { summary, salesReps, loading, error, refreshDashboard } = useDashboard();
+  const { summary, salesReps, loading, error, refreshDashboard } = useDashboard(user);
 
   if (!user || (loading && !summary)) {
     return (
@@ -47,6 +47,9 @@ export function DashboardPage(props: DashboardPageProps) {
     );
   }
 
+  const isGlobalAdmin = user.role === 'ADMIN' && hasPermission(user, 'dashboard:global');
+  const canViewSalesRepReport = user.role === 'ADMIN' && hasPermission(user, 'dashboard:by_sales_rep');
+
   const s = summary || {
     totalAccepted: 0,
     acceptanceRate: 0,
@@ -62,30 +65,55 @@ export function DashboardPage(props: DashboardPageProps) {
 
   return (
     <div className="space-y-6">
-      {/* Subview Switcher */}
-      <div className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-800 rounded-lg w-fit">
-        <button
-          type="button"
-          onClick={() => setSubView('general')}
-          className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer ${
-            subView === 'general'
-              ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs'
-              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-          }`}
-        >
-          📊 Resumen Ejecutivo
-        </button>
-        <button
-          type="button"
-          onClick={() => setSubView('kpis')}
-          className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer ${
-            subView === 'kpis'
-              ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs'
-              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-          }`}
-        >
-          📈 Métricas & KPIs del Pipeline
-        </button>
+      {/* Header & Role Scope Banner + Subview Switcher */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <h2 className="text-base font-extrabold text-slate-900 dark:text-white tracking-tight">
+              {isGlobalAdmin ? 'Panel General — Resumen Global Consolidado' : 'Panel General — Mi Resumen Comercial'}
+            </h2>
+            <span
+              className={`text-[11px] font-bold px-2.5 py-0.5 rounded-md border ${
+                isGlobalAdmin
+                  ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800/60'
+                  : 'bg-sky-50 dark:bg-sky-950/60 text-sky-700 dark:text-sky-300 border-sky-200 dark:border-sky-800/60'
+              }`}
+            >
+              {isGlobalAdmin ? 'Vista Global (Administrador)' : `Métricas Personales (${user.name})`}
+            </span>
+          </div>
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            {isGlobalAdmin
+              ? 'Visualizando el resumen general consolidado y las métricas de todos los asesores comerciales.'
+              : `Visualizando únicamente su resumen comercial y sus métricas/KPIs personales (${user.name}).`}
+          </p>
+        </div>
+
+        {/* Subview Switcher */}
+        <div className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-800 rounded-lg w-fit shrink-0">
+          <button
+            type="button"
+            onClick={() => setSubView('general')}
+            className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer ${
+              subView === 'general'
+                ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            📊 {isGlobalAdmin ? 'Resumen Ejecutivo' : 'Mi Resumen'}
+          </button>
+          <button
+            type="button"
+            onClick={() => setSubView('kpis')}
+            className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer ${
+              subView === 'kpis'
+                ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            📈 {isGlobalAdmin ? 'Métricas & KPIs del Pipeline' : 'Mis KPIs del Pipeline'}
+          </button>
+        </div>
       </div>
 
       {subView === 'kpis' ? (
@@ -168,7 +196,7 @@ export function DashboardPage(props: DashboardPageProps) {
               </div>
               <div>
                 <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">
-                  Venta Aceptada
+                  {isGlobalAdmin ? 'Venta Aceptada Consolidada' : 'Mi Venta Aceptada'}
                 </span>
                 <p className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white font-mono mt-0.5">
                   {formatMoney((s as any).totalAcceptedSales ?? (s as any).acceptedValue ?? 0)}
@@ -182,8 +210,8 @@ export function DashboardPage(props: DashboardPageProps) {
             </div>
           </div>
 
-          {/* Sales Rep Report */}
-          {hasPermission(user, 'dashboard:by_sales_rep') && salesReps.length > 0 && (
+          {/* Sales Rep Report (Exclusivo para Administrador) */}
+          {canViewSalesRepReport && salesReps.length > 0 && (
             <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5 shadow-xs space-y-4">
               <h3 className="font-bold text-slate-900 dark:text-white text-sm">
                 Rendimiento y Control por Asesor Comercial / Ingeniero

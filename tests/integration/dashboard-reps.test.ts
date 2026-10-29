@@ -109,4 +109,88 @@ describe('Dashboards por rol, permisos y cuadre por asesor', () => {
     expect(repsRes.body.length).toBe(1);
     expect(repsRes.body[0].salesRepId).toBe('usr-sales-01');
   });
+
+  it('5. SALES_REP solo visualiza su propio resumen en /dashboard/summary y no el consolidado global del ADMIN', async () => {
+    const adminLogin = await request(app)
+      .post('/api/v1/auth/login')
+      .send({ email: 'admin@mlingenieria.cl', password: 'admin123' });
+    const adminToken = adminLogin.body.token;
+
+    const repLogin = await request(app)
+      .post('/api/v1/auth/login')
+      .send({ email: 'smorales@mlingenieria.cl', password: 'admin123' });
+    const repToken = repLogin.body.token;
+
+    // Crear una cotización exclusiva del Administrador (usr-admin-01)
+    const adminQuoteRes = await request(app)
+      .post('/api/v1/quotations')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        customerId: 'cust-01',
+        contactId: 'cnt-01',
+        salesRepId: 'usr-admin-01',
+        title: 'Cotización Exclusiva de Gerencia Admin',
+      });
+    expect(adminQuoteRes.status).toBe(201);
+
+    const globalSummaryRes = await request(app)
+      .get('/api/v1/dashboard/summary')
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(globalSummaryRes.status).toBe(200);
+    expect(globalSummaryRes.body.scope).toBe('GLOBAL');
+
+    const repSummaryRes = await request(app)
+      .get('/api/v1/dashboard/summary')
+      .set('Authorization', `Bearer ${repToken}`);
+    expect(repSummaryRes.status).toBe(200);
+    expect(repSummaryRes.body.scope).toBe('PERSONAL');
+    expect(repSummaryRes.body.salesRepId).toBe('usr-sales-01');
+
+    // El total de cotizaciones del asesor debe ser menor que el global (ya que existe al menos la cotización del admin)
+    expect(repSummaryRes.body.totalQuotations).toBeLessThan(globalSummaryRes.body.totalQuotations);
+  });
+
+  it('6. SALES_REP solo visualiza sus propias métricas en /dashboard/pipeline-metrics sin exponer métricas de ADMIN ni otros asesores', async () => {
+    const repLogin = await request(app)
+      .post('/api/v1/auth/login')
+      .send({ email: 'smorales@mlingenieria.cl', password: 'admin123' });
+    const repToken = repLogin.body.token;
+
+    const metricsRes = await request(app)
+      .get('/api/v1/dashboard/pipeline-metrics')
+      .set('Authorization', `Bearer ${repToken}`);
+    expect(metricsRes.status).toBe(200);
+    expect(metricsRes.body.scope).toBe('PERSONAL');
+    expect(metricsRes.body.salesRepId).toBe('usr-sales-01');
+    expect(Array.isArray(metricsRes.body.wonLostBySalesRep.items)).toBe(true);
+    expect(metricsRes.body.wonLostBySalesRep.items.length).toBe(1);
+    expect(metricsRes.body.wonLostBySalesRep.items[0].salesRepId).toBe('usr-sales-01');
+  });
+
+  it('7. SALES_REP recibe 403 Forbidden si intenta consultar métricas del ADMIN o de otro asesor vía salesRepId', async () => {
+    const repLogin = await request(app)
+      .post('/api/v1/auth/login')
+      .send({ email: 'smorales@mlingenieria.cl', password: 'admin123' });
+    const repToken = repLogin.body.token;
+
+    const sumForbidden = await request(app)
+      .get('/api/v1/dashboard/summary?salesRepId=usr-admin-01')
+      .set('Authorization', `Bearer ${repToken}`);
+    expect(sumForbidden.status).toBe(403);
+
+    const repsForbidden = await request(app)
+      .get('/api/v1/dashboard/by-sales-rep?salesRepId=usr-admin-01')
+      .set('Authorization', `Bearer ${repToken}`);
+    expect(repsForbidden.status).toBe(403);
+
+    const itemTypeForbidden = await request(app)
+      .get('/api/v1/dashboard/by-item-type?salesRepId=usr-admin-01')
+      .set('Authorization', `Bearer ${repToken}`);
+    expect(itemTypeForbidden.status).toBe(403);
+
+    const kpiForbidden = await request(app)
+      .get('/api/v1/dashboard/pipeline-metrics?salesRepId=usr-admin-01')
+      .set('Authorization', `Bearer ${repToken}`);
+    expect(kpiForbidden.status).toBe(403);
+  });
 });

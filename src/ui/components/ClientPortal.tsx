@@ -73,7 +73,6 @@ const t = {
   confirmAcceptance: '¿Está seguro de aceptar esta cotización?',
   quoteAcceptedSuccess: '¡Cotización aceptada con éxito!',
   quoteRejectedSuccess: 'Cotización rechazada.',
-  audioSummary: 'Escuchar Resumen por Voz (IA)',
   downloadPdf: 'Descargar / Imprimir',
   noQuotesFound: 'No se encontraron cotizaciones registradas.',
   close: 'Cerrar',

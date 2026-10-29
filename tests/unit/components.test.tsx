@@ -9,6 +9,7 @@ import { ClientPortal } from '../../src/ui/components/ClientPortal.tsx';
 import { AppLayout } from '../../src/ui/layouts/AppLayout.tsx';
 import { RevisionsModal } from '../../src/ui/modals/RevisionsModal.tsx';
 import { LoginPage } from '../../src/ui/pages/LoginPage.tsx';
+import { DashboardPage } from '../../src/ui/pages/internal/DashboardPage.tsx';
 import { User, CompanySettings, Customer, Quotation } from '../../src/modules/types.ts';
 import { ROLE_PERMISSIONS } from '../../src/shared-kernel/permissions.ts';
 
@@ -525,6 +526,143 @@ describe('Pruebas de Componentes React (Vitest + Testing Library + JSDOM)', () =
 
       // Verificar mensaje de éxito
       expect(await screen.findByText(/¡Plantilla guardada con éxito!/i)).toBeTruthy();
+    });
+  });
+
+  describe('7. DashboardPage - Visibilidad y Permisos por Rol (ADMIN vs SALES_REP)', () => {
+    const mockSummary = {
+      scope: 'GLOBAL',
+      totalQuotations: 10,
+      totalAccepted: 6,
+      acceptanceRate: 60,
+      totalSent: 2,
+      totalViewed: 1,
+      totalAcceptedSales: 15000000,
+      avgMargin: 32.5,
+      totalRejected: 1,
+      itemTypeBreakdown: {
+        products: { count: 4, revenue: 5000000, sales: 5000000, cost: 3200000, profit: 1800000, marginPct: 36 },
+        services: { count: 2, revenue: 10000000, sales: 10000000, cost: 6925000, profit: 3075000, marginPct: 30.8 },
+      },
+    };
+
+    const mockRepsReport = [
+      {
+        salesRepId: 'usr-admin-01',
+        salesRepName: 'Administrador General',
+        name: 'Administrador General',
+        totalQuotes: 4,
+        accepted: 3,
+        rejected: 0,
+        viewed: 1,
+        sent: 0,
+        totalSales: 8000000,
+        avgMarginPct: 34,
+        acceptanceRate: 75,
+      },
+      {
+        salesRepId: 'usr-sales-01',
+        salesRepName: 'Sebastián Morales',
+        name: 'Sebastián Morales',
+        totalQuotes: 6,
+        accepted: 3,
+        rejected: 1,
+        viewed: 0,
+        sent: 2,
+        totalSales: 7000000,
+        avgMarginPct: 31,
+        acceptanceRate: 50,
+      },
+    ];
+
+    const mockPipelineMetrics = {
+      closeRate: { value: 75, acceptedCount: 3, decidedCount: 4, definition: 'Def 1' },
+      salesCycle: { avgDays: 2.5, decidedCount: 4, definition: 'Def 2' },
+      timeToFirstView: { avgHours: 12, avgDays: 0.5, viewedCount: 3, definition: 'Def 3' },
+      weightedPipeline: {
+        amount: 2000000,
+        totalPipelineNet: 5000000,
+        activeQuotesCount: 2,
+        probabilities: { DRAFT: 10, SENT: 30, VIEWED: 50, CHANGES_REQUESTED: 40 },
+        definition: 'Def 4',
+      },
+      sentAge: { avgDays: 3, pendingCount: 2, definition: 'Def 5' },
+      acceptedMargin: { avgMarginPct: 32, minMarginPct: 28, deltaPct: 4, definition: 'Def 6' },
+      wonLostByCategory: {
+        items: [{ categoryId: 'cat-01', categoryName: 'Ingeniería Naval', wonCount: 3, lostCount: 1, wonAmount: 7000000 }],
+        definition: 'Def Cat',
+      },
+      wonLostBySalesRep: {
+        items: [
+          { salesRepId: 'usr-admin-01', salesRepName: 'Administrador General', wonCount: 3, lostCount: 0, wonAmount: 8000000, closeRatePct: 100 },
+          { salesRepId: 'usr-sales-01', salesRepName: 'Sebastián Morales', wonCount: 3, lostCount: 1, wonAmount: 7000000, closeRatePct: 75 },
+        ],
+        definition: 'Def Reps',
+      },
+    };
+
+    it('Rol ADMIN visualiza el resumen global consolidado y las tablas comparativas de todos los asesores', async () => {
+      (apiRequest as any).mockImplementation((url: string) => {
+        if (url === '/api/v1/dashboard/summary') return Promise.resolve({ data: mockSummary, status: 200 });
+        if (url === '/api/v1/dashboard/by-sales-rep') return Promise.resolve({ data: mockRepsReport, status: 200 });
+        if (url === '/api/v1/dashboard/pipeline-metrics') return Promise.resolve({ data: mockPipelineMetrics, status: 200 });
+        return Promise.resolve({ data: {}, status: 200 });
+      });
+
+      render(
+        <MemoryRouter>
+          <DashboardPage user={mockAdminUser} company={mockCompany} />
+        </MemoryRouter>
+      );
+
+      expect(await screen.findByText(/Vista Global \(Administrador\)/i)).toBeTruthy();
+      expect(screen.getByText(/Rendimiento y Control por Asesor Comercial \/ Ingeniero/i)).toBeTruthy();
+      expect(screen.getByText('Sebastián Morales')).toBeTruthy();
+
+      // Cambiar a vista de KPIs del Pipeline
+      fireEvent.click(screen.getByRole('button', { name: /Métricas & KPIs del Pipeline/i }));
+      expect(await screen.findByText(/Ganadas \/ Perdidas por Asesor/i)).toBeTruthy();
+      expect(screen.getByRole('button', { name: /Configurar Ponderaciones/i })).toBeTruthy();
+    });
+
+    it('Rol SALES_REP solo visualiza su propio resumen y KPIs personales sin acceso a tablas de otros asesores ni del ADMIN', async () => {
+      (apiRequest as any).mockImplementation((url: string) => {
+        if (url === '/api/v1/dashboard/summary') {
+          return Promise.resolve({ data: { ...mockSummary, scope: 'PERSONAL', salesRepId: mockSalesRepUser.id }, status: 200 });
+        }
+        if (url === '/api/v1/dashboard/pipeline-metrics') {
+          return Promise.resolve({
+            data: {
+              ...mockPipelineMetrics,
+              scope: 'PERSONAL',
+              wonLostBySalesRep: {
+                items: [mockPipelineMetrics.wonLostBySalesRep.items[1]],
+                definition: 'Def Reps',
+              },
+            },
+            status: 200,
+          });
+        }
+        return Promise.resolve({ data: [], status: 200 });
+      });
+
+      render(
+        <MemoryRouter>
+          <DashboardPage user={mockSalesRepUser} company={mockCompany} />
+        </MemoryRouter>
+      );
+
+      expect(await screen.findByText(/Métricas Personales \(Sebastián Morales\)/i)).toBeTruthy();
+      expect(screen.getByText(/Mi Venta Aceptada/i)).toBeTruthy();
+      // No debe mostrar la tabla comparativa de todos los asesores
+      expect(screen.queryByText(/Rendimiento y Control por Asesor Comercial \/ Ingeniero/i)).toBeNull();
+
+      // Cambiar a vista de Mis KPIs del Pipeline
+      fireEvent.click(screen.getByRole('button', { name: /Mis KPIs del Pipeline/i }));
+      expect(await screen.findByText(/Mis Métricas de Pipeline & KPIs Personales/i)).toBeTruthy();
+      // No debe mostrar la tabla comparativa "Ganadas / Perdidas por Asesor" ni el botón de configuración de ADMIN
+      expect(screen.queryByText(/Ganadas \/ Perdidas por Asesor/i)).toBeNull();
+      expect(screen.queryByRole('button', { name: /Configurar Ponderaciones/i })).toBeNull();
     });
   });
 });

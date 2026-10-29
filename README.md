@@ -1,6 +1,6 @@
 # Cotizador Online &mdash; Sistema Integral de Gestión de Cotizaciones y Portal de Clientes
 
-Sistema web completo de nivel corporativo para la gestión centralizada de cotizaciones (proformas) de **productos y servicios**, diseñado para reemplazar hojas de cálculo de Excel sin control. Integra un **panel interno para comerciales y administradores**, un **portal de autoservicio para clientes** y un **login unificado**, con control estricto del **margen bruto comercial (mínimo 25%)**, trazabilidad de estados, asistente inteligente con **Gemini IA (Chat, análisis de documentos y TTS)** y los módulos transversales post-aceptación de **Facturas** y **Operaciones**.
+Sistema web completo de nivel corporativo para la gestión centralizada de cotizaciones (proformas) de **productos y servicios**, diseñado para reemplazar hojas de cálculo de Excel sin control. Integra un **panel interno para comerciales y administradores**, un **portal de autoservicio para clientes** y un **login unificado**, con control estricto del **margen bruto comercial (mínimo 25%)**, trazabilidad de estados, asistente inteligente con **Gemini IA (Chat comercial y análisis de requerimientos)** y los módulos transversales post-aceptación de **Facturas** y **Operaciones**.
 
 ---
 
@@ -15,7 +15,7 @@ Sistema web completo de nivel corporativo para la gestión centralizada de cotiz
    - 4.4 Vista Pública de Cotización (`/q/:token`)
    - 4.5 Portal del Cliente (`/portal`) con Facturas y Operaciones Habilitadas
    - 4.6 Módulos Transversales de Facturación y Operaciones (Panel Interno `/app`)
-   - 4.7 Asistente con Gemini IA (Chat, TTS y Análisis de Documentos)
+   - 4.7 Asistente con Gemini IA (Chat Comercial y Análisis de Documentos)
    - 4.8 Asignación del Equipo Comercial (Solo Administrador)
    - 4.9 Gestión Compartida de Clientes y Contactos (Admin & Panel Comercial)
    - 4.10 Logs de Auditoría y Exportación a CSV (`.csv`)
@@ -135,7 +135,7 @@ Tradicionalmente, las áreas comerciales emiten cotizaciones utilizando plantill
 - La primera apertura ejecuta el evento de dominio `QuotationViewed`, notificando de inmediato al vendedor por email y WhatsApp.
 - Checkbox obligatorio de aceptación de términos y botones de Aceptar o Rechazar.
 - Al aceptar, se dispara la emisión instantánea de la factura y de las órdenes operativas.
-- Generación de resumen por voz mediante **Gemini TTS (`gemini-3.8-flash-tts`)** e impresión a PDF.
+- Opciones de descarga e impresión formal a PDF.
 
 ### 4.5 Portal del Cliente (`/portal`) con Facturas y Operaciones Habilitadas
 El portal corporativo para clientes (`/portal`) ha habilitado al 100% sus módulos funcionales, eliminando cualquier etiqueta de "próximamente" y ofreciendo una experiencia integral:
@@ -177,7 +177,6 @@ Para garantizar una estricta coherencia entre lo que ve el cliente y lo que admi
 
 ### 4.7 Asistente con Gemini IA
 - **Chat Multiturno:** asistente comercial y técnico para resolver dudas sobre propuestas, cálculos y términos.
-- **Text-to-Speech (TTS):** sintetizador de voz con `gemini-3.8-flash-tts` para reproducir el resumen ejecutivo de la cotización.
 - **Análisis de Documentos e Imágenes:** análisis de diagramas técnicos y solicitudes de cotización mediante modelos multimodales de Gemini.
 
 ### 4.8 Asignación del Equipo Comercial (Solo Administrador)
@@ -345,7 +344,6 @@ graph TB
     API --> Domain[Core Domain Quoting, Invoicing & Operations]
     Domain --> DB[(In-Memory Persistent Store)]
     API --> Gemini[Google GenAI SDK server-side]
-    Gemini --> TTS[Gemini 3.8 Flash TTS]
     Gemini --> Chat[Gemini 3.5 Flash / 3.8 Flash]
 ```
 
@@ -443,7 +441,6 @@ El contrato formal OpenAPI 3.1 se ubica en `contracts/openapi.yaml` y se puede c
 | `GET` | `/api/v1/audit-logs/export.csv` | Exportación de registros de auditoría a CSV con UTF-8 BOM |
 | `GET` | `/api/v1/system/backup` | Descarga de copia de respaldo completa en JSON |
 | `POST` | `/api/v1/system/restore` | Restauración de base de datos desde respaldo (Solo Admin) |
-| `POST` | `/api/v1/gemini/tts` | Síntesis de voz con `gemini-3.8-flash-tts` |
 
 ### Comandos cURL de prueba rápida:
 
@@ -567,7 +564,7 @@ La plataforma cuenta con un sistema reactivo de temas basado en la preferencia d
 
 | Variable | Requerida | Propósito |
 |---|---|---|
-| `GEMINI_API_KEY` | Sí | Clave para llamadas a la API de Google Gemini (Chat, TTS, análisis) |
+| `GEMINI_API_KEY` | Sí | Clave para llamadas a la API de Google Gemini (Chat y análisis de requerimientos) |
 | `PORT` | Opcional | Puerto del servidor (por defecto 3000) |
 | `NODE_ENV` | Opcional | `development` o `production` |
 
@@ -618,8 +615,7 @@ npm run test
 │   │       ├── QuotationWizard.tsx
 │   │       ├── PublicQuotationView.tsx
 │   │       ├── ClientPortal.tsx      # Portal cliente con Facturas y Operaciones
-│   │       ├── InternalApp.tsx       # Panel interno con Facturación & Cobranzas y Operaciones
-│   │       └── AiAssistant.tsx       # Asistente Gemini (Chat, TTS, Vision)
+│   │       └── AiAssistant.tsx       # Asistente Gemini (Chat y Análisis)
 │   ├── App.tsx                # Enrutador principal y login unificado
 │   ├── main.tsx
 │   └── index.css

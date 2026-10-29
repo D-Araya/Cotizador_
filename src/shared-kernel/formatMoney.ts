@@ -1,6 +1,6 @@
 /**
  * Formateador de dinero canónico para toda la aplicación (M&L Ingeniería Naval SpA).
- * Usado por los tres paneles (Interno, Portal del Cliente, Vista Pública) y síntesis de voz.
+ * Usado por los tres paneles (Interno, Portal del Cliente, Vista Pública).
  */
 
 export function formatMoney(
@@ -32,7 +32,7 @@ export function formatMoney(
 }
 
 /**
- * Versión en texto hablado para asistentes de voz (TTS).
+ * Versión en texto extendido y verbalizado de montos.
  */
 export function formatMoneySpoken(
   amount: number | string | null | undefined,
