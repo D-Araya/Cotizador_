@@ -4,6 +4,7 @@ import {
   sendProblem,
   globalErrorHandler,
   requestIdMiddleware,
+  sanitizeObjectKeys,
 } from '../../src/server/security.js';
 
 describe('Security Utilities Unit Tests (src/server/security.ts)', () => {
@@ -136,6 +137,28 @@ describe('Security Utilities Unit Tests (src/server/security.ts)', () => {
 
       expect(req.id).toBe('client-provided-trace-id');
       expect(setHeader).toHaveBeenCalledWith('X-Request-Id', 'client-provided-trace-id');
+    });
+  });
+
+  describe('sanitizeObjectKeys (Prototype Pollution Guard)', () => {
+    it('elimina claves peligrosas __proto__, constructor y prototype', () => {
+      const maliciousPayload = JSON.parse(
+        '{"name":"Test","__proto__":{"polluted":true},"nested":{"constructor":"hack","value":42}}'
+      );
+
+      const cleaned: any = sanitizeObjectKeys(maliciousPayload);
+
+      expect(cleaned.name).toBe('Test');
+      expect(Object.prototype.hasOwnProperty.call(cleaned, '__proto__')).toBe(false);
+      expect(cleaned.nested.value).toBe(42);
+      expect(Object.prototype.hasOwnProperty.call(cleaned.nested, 'constructor')).toBe(false);
+      expect((Object.prototype as any).polluted).toBeUndefined();
+    });
+
+    it('conserva tipos primitivos y arrays sanos', () => {
+      expect(sanitizeObjectKeys(null)).toBe(null);
+      expect(sanitizeObjectKeys('texto')).toBe('texto');
+      expect(sanitizeObjectKeys([1, 2, { a: 'b' }])).toEqual([1, 2, { a: 'b' }]);
     });
   });
 });

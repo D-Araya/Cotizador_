@@ -130,4 +130,119 @@ describe('Fase 1: Seguridad y Permisos (S1 a S6, S8 y S9)', () => {
 
     expect(res.status).toBe(401);
   });
+
+  it('S7: Intento de suplantar rol o identidad mediante cabeceras x-user-role/x-user-id es rechazado con 401', async () => {
+    // Un atacante intenta enviar x-user-role: ADMIN sin token Bearer
+    const res = await request(app)
+      .get('/api/v1/quotations')
+      .set('x-user-role', 'ADMIN')
+      .set('x-user-id', 'usr-admin-01');
+
+    expect(res.status).toBe(401);
+    expect(res.body.title).toBe('Unauthorized');
+  });
+
+  it('S8: Cuentas sin hash de contraseña configurado no pueden ser usurpadas vía /auth/login', async () => {
+    // usr-client-01 existe en la BD pero no tiene passwordHash (autentica por enlace mágico)
+    const res = await request(app)
+      .post('/api/v1/auth/login')
+      .send({ email: 'mbarrientos@australsalmon.cl', password: 'attacker_password' });
+
+    expect(res.status).toBe(401);
+    expect(res.body.title).toBe('Credenciales inválidas');
+  });
+
+  it('S9: Un asesor no puede modificar líneas, enviar, rechazar ni agregar adjuntos a cotizaciones de otro asesor (Anti-IDOR)', async () => {
+    const adminLogin = await request(app)
+      .post('/api/v1/auth/login')
+      .send({ email: 'admin@mlingenieria.cl', password: 'admin123' });
+    const adminToken = adminLogin.body.token;
+
+    const repLogin = await request(app)
+      .post('/api/v1/auth/login')
+      .send({ email: 'smorales@mlingenieria.cl', password: 'admin123' });
+    const repToken = repLogin.body.token;
+
+    // Crear cotización perteneciente a admin
+    const createRes = await request(app)
+      .post('/api/v1/quotations')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ customerId: 'cust-01', salesRepId: 'usr-admin-01' });
+    const quoteId = createRes.body.id;
+
+    // 1. Asesor intenta modificar líneas
+    const linesRes = await request(app)
+      .put(`/api/v1/quotations/${quoteId}/lines`)
+      .set('Authorization', `Bearer ${repToken}`)
+      .send({ lines: [{ catalogItemId: 'prod-01', quantity: 1, price: 50000 }] });
+    expect(linesRes.status).toBe(403);
+    expect(linesRes.body.title).toBe('Acceso denegado');
+
+    // 2. Asesor intenta enviar la cotización
+    const sendRes = await request(app)
+      .post(`/api/v1/quotations/${quoteId}/send`)
+      .set('Authorization', `Bearer ${repToken}`);
+    expect(sendRes.status).toBe(403);
+
+    // 3. Asesor intenta rechazar la cotización
+    const rejectRes = await request(app)
+      .post(`/api/v1/quotations/${quoteId}/reject`)
+      .set('Authorization', `Bearer ${repToken}`)
+      .send({ lossReason: 'precio' });
+    expect(rejectRes.status).toBe(403);
+
+    // 4. Asesor intenta agregar un adjunto
+    const attRes = await request(app)
+      .post(`/api/v1/quotations/${quoteId}/attachments`)
+      .set('Authorization', `Bearer ${repToken}`)
+      .send({ name: 'Plano Malicioso', url: 'https://attacker.com/doc.pdf' });
+    expect(attRes.status).toBe(403);
+  });
+
+  it('S10: Los enlaces públicos protegen borradores (DRAFT) de decisiones y sanitizan estrictamente', async () => {
+    const adminLogin = await request(app)
+      .post('/api/v1/auth/login')
+      .send({ email: 'admin@mlingenieria.cl', password: 'admin123' });
+    const adminToken = adminLogin.body.token;
+
+    // Crear borrador
+    const createRes = await request(app)
+      .post('/api/v1/quotations')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ customerId: 'cust-01' });
+    const draftToken = createRes.body.publicToken;
+
+    // 1. Intento de aceptar borrador devuelve 400
+    const acceptRes = await request(app)
+      .post(`/api/v1/public/quotations/${draftToken}/accept`)
+      .send({ termsAccepted: true, signerName: 'Juan Pérez', signerPosition: 'Gerente' });
+    expect(acceptRes.status).toBe(400);
+
+    // 2. Intento de desestimar borrador devuelve 400
+    const rejectRes = await request(app)
+      .post(`/api/v1/public/quotations/${draftToken}/reject`)
+      .send({ reason: 'No aceptado' });
+    expect(rejectRes.status).toBe(400);
+
+    // 3. Intento de solicitar ajuste a borrador devuelve 400
+    const adjustRes = await request(app)
+      .post(`/api/v1/public/quotations/${draftToken}/request-adjustment`)
+      .send({ message: 'Cambio' });
+    expect(adjustRes.status).toBe(400);
+  });
+
+  it('S11: Endpoints de categorías validan estructura y rechazan nombres vacíos con 400', async () => {
+    const adminLogin = await request(app)
+      .post('/api/v1/auth/login')
+      .send({ email: 'admin@mlingenieria.cl', password: 'admin123' });
+    const adminToken = adminLogin.body.token;
+
+    const res = await request(app)
+      .post('/api/v1/categories')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ name: ' ' });
+
+    expect(res.status).toBe(400);
+    expect(res.body.title).toBe('Datos incompletos');
+  });
 });

@@ -369,6 +369,10 @@ quotationsRouter.put('/:id/lines', (req: Request, res: Response) => {
   const quot = state.quotations.find((q) => q.id === req.params.id);
   if (!quot) return sendProblem(res, 404, 'Cotización no encontrada', 'No existe.');
 
+  if (req.user?.role === 'SALES_REP' && quot.salesRepId !== req.user.id) {
+    return sendProblem(res, 403, 'Acceso denegado', 'No puede modificar cotizaciones de otro asesor.');
+  }
+
   if (quot.status !== 'DRAFT' && quot.status !== 'PENDING_APPROVAL') {
     return sendProblem(res, 400, 'Cotización no editable', 'Solo las cotizaciones en estado borrador o pendiente de aprobación pueden ser modificadas.');
   }
@@ -587,6 +591,10 @@ quotationsRouter.post('/:id/send', async (req: Request, res: Response) => {
   const quot = state.quotations.find((q) => q.id === req.params.id);
   if (!quot) return sendProblem(res, 404, 'Cotización no encontrada', 'No existe.');
 
+  if (req.user?.role === 'SALES_REP' && quot.salesRepId !== req.user.id) {
+    return sendProblem(res, 403, 'Acceso denegado', 'No puede enviar cotizaciones de otro asesor.');
+  }
+
   if (quot.status === 'PENDING_APPROVAL') {
     return sendProblem(
       res,
@@ -782,6 +790,10 @@ const handleNextAction = async (req: Request, res: Response) => {
   const quot = state.quotations.find((q) => q.id === req.params.id);
   if (!quot) return sendProblem(res, 404, 'Cotización no encontrada', 'No existe.');
 
+  if (req.user?.role === 'SALES_REP' && quot.salesRepId !== req.user.id) {
+    return sendProblem(res, 403, 'Acceso denegado', 'No puede gestionar cotizaciones de otro asesor.');
+  }
+
   const { nextActionAt, nextActionNote } = parsed.data;
 
   if (!nextActionAt) {
@@ -892,6 +904,10 @@ quotationsRouter.post('/:id/reject', async (req: Request, res: Response) => {
   const state = dbStore.getState();
   const quot = state.quotations.find((q) => q.id === req.params.id);
   if (!quot) return sendProblem(res, 404, 'Cotización no encontrada', 'No existe.');
+
+  if (req.user?.role === 'SALES_REP' && quot.salesRepId !== req.user.id) {
+    return sendProblem(res, 403, 'Acceso denegado', 'No puede desestimar cotizaciones de otro asesor.');
+  }
 
   if (quot.status === 'ACCEPTED') {
     return sendProblem(res, 400, 'Cotización aceptada', 'No se puede rechazar una cotización ya aceptada formalmente.');
@@ -1095,6 +1111,10 @@ quotationsRouter.post('/:id/accept-offline', async (req: Request, res: Response)
   const state = dbStore.getState();
   const quot = state.quotations.find((q) => q.id === req.params.id);
   if (!quot) return sendProblem(res, 404, 'Cotización no encontrada', 'No existe.');
+
+  if (req.user?.role === 'SALES_REP' && quot.salesRepId !== req.user.id) {
+    return sendProblem(res, 403, 'Acceso denegado', 'No puede aceptar cotizaciones de otro asesor.');
+  }
 
   const parsed = quotationOfflineAcceptSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -1315,6 +1335,10 @@ quotationsRouter.post('/:id/attachments', async (req: Request, res: Response) =>
   const quot = state.quotations.find((q) => q.id === req.params.id);
   if (!quot) return sendProblem(res, 404, 'Cotización no encontrada', 'No existe.');
 
+  if (req.user?.role === 'SALES_REP' && quot.salesRepId !== req.user.id) {
+    return sendProblem(res, 403, 'Acceso denegado', 'No puede agregar adjuntos a cotizaciones de otro asesor.');
+  }
+
   const parsed = quotationAttachmentSchema.safeParse(req.body);
   if (!parsed.success) {
     return sendProblem(res, 400, 'Datos inválidos', parsed.error.issues[0]?.message || 'El nombre y enlace URL son obligatorios.');
@@ -1353,6 +1377,10 @@ quotationsRouter.delete('/:id/attachments/:attachmentId', async (req: Request, r
   const state = dbStore.getState();
   const quot = state.quotations.find((q) => q.id === req.params.id);
   if (!quot) return sendProblem(res, 404, 'Cotización no encontrada', 'No existe.');
+
+  if (req.user?.role === 'SALES_REP' && quot.salesRepId !== req.user.id) {
+    return sendProblem(res, 403, 'Acceso denegado', 'No puede eliminar adjuntos de cotizaciones de otro asesor.');
+  }
 
   if (!quot.attachments) quot.attachments = [];
   const attIndex = quot.attachments.findIndex((a) => a.id === req.params.attachmentId);

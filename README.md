@@ -516,17 +516,7 @@ Toda transición de estado crítica genera un mensaje en la tabla `outbox_messag
 
 ---
 
-## 15. Internacionalización y Modo de Tema
-
-### 15.1 Internacionalización (i18n)
-El portal de clientes implementa diccionarios i18n reactivos disponibles en:
-- 🇪🇸 **Español** (`es`)
-- 🇺🇸 **English** (`en`)
-- 🇩🇪 **Deutsch** (`de`)
-
-El cambio de idioma se efectúa al instante sin recarga de pantalla, cubriendo todas las pestañas: Dashboard, Cotizaciones, Calendario, Línea de Tiempo, Facturas y Operaciones.
-
-### 15.2 Modo de Tema UX/UI (Tema Claro, Oscuro y Detección del Sistema Operativo)
+## 15. Modo de Tema UX/UI (Tema Claro, Oscuro y Detección del Sistema Operativo)
 La plataforma cuenta con un sistema reactivo de temas basado en la preferencia del usuario y de su sistema operativo:
 
 - **Variable de Control de Tema (`ThemeMode`):**
@@ -621,7 +611,6 @@ npm run test
 │   │   └── pricing/MarginPolicy.ts
 │   ├── ui/                    # Capa de presentación React
 │   │   ├── api.ts             # Cliente HTTP para BFF
-│   │   ├── i18n.ts            # Diccionarios multilingües (es, en, de)
 │   │   ├── theme.tsx          # Gestión de temas Claro/Oscuro/Sistema (prefers-color-scheme)
 │   │   └── components/
 │   │       ├── Skeleton.tsx          # Componentes Skeleton para feedback visual de carga

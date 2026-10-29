@@ -16,7 +16,6 @@ import {
   Eye,
   Building,
   User,
-  Globe,
   Loader2,
   AlertCircle,
   ExternalLink,
@@ -33,7 +32,6 @@ import {
 } from 'lucide-react';
 import { Quotation, User as UserType, Invoice, OperationOrder } from '../../modules/types.ts';
 import { StatusBadge, statusLabels, getEffectiveQuotationStatus } from './CommonBadges.tsx';
-import { portalTranslations, Language } from '../i18n.ts';
 import { ThemeSelector } from '../theme.tsx';
 import {
   KpiGridSkeleton,
@@ -45,6 +43,76 @@ import {
 } from './Skeleton.tsx';
 import { apiRequest, subscribeToQuotationSync, notifyQuotationSync } from '../api.ts';
 import { formatMoney } from '../../shared-kernel/formatMoney.ts';
+
+const t = {
+  portalTitle: 'Portal Corporativo del Cliente',
+  welcomeBack: 'Bienvenido de nuevo',
+  dashboard: 'Panel General',
+  quotations: 'Mis Cotizaciones',
+  calendar: 'Calendario Mensual',
+  timeline: 'Línea de Tiempo',
+  invoices: 'Facturación y Pagos',
+  operations: 'Operaciones y Entregas',
+  logout: 'Cerrar Sesión',
+  accepted: 'Aceptadas',
+  pending: 'Pendientes de Revisión',
+  rejected: 'Rechazadas',
+  totalQuotes: 'Total de Propuestas',
+  number: 'N.º Cotización',
+  date: 'Fecha',
+  salesRep: 'Asesor Comercial',
+  total: 'Importe Total',
+  status: 'Estado',
+  actions: 'Acciones',
+  viewDetails: 'Ver Detalle',
+  acceptQuote: 'Aceptar Cotización',
+  rejectQuote: 'Rechazar',
+  termsAcceptanceRequired: 'Debe aceptar los términos y condiciones para proceder.',
+  acceptTermsLabel: 'He leído y acepto los términos y condiciones comerciales.',
+  rejectionReasonPrompt: 'Indique el motivo del rechazo (opcional):',
+  confirmAcceptance: '¿Está seguro de aceptar esta cotización?',
+  quoteAcceptedSuccess: '¡Cotización aceptada con éxito!',
+  quoteRejectedSuccess: 'Cotización rechazada.',
+  audioSummary: 'Escuchar Resumen por Voz (IA)',
+  downloadPdf: 'Descargar / Imprimir',
+  noQuotesFound: 'No se encontraron cotizaciones registradas.',
+  close: 'Cerrar',
+  filterAll: 'Todos los estados',
+  products: 'Productos',
+  services: 'Servicios',
+  extraCosts: 'Costos Adicionales (Informativos)',
+  subtotal: 'Subtotal',
+  tax: 'IVA (19%)',
+  grandTotal: 'Total General',
+  // Invoices translations
+  invoicesTitle: 'Documentos de Cobro y Estado de Cuenta',
+  totalBilled: 'Total Facturado',
+  totalPaid: 'Total Pagado',
+  totalDue: 'Saldo Pendiente',
+  invoiceNumber: 'N.º Comprobante',
+  issueDate: 'Fecha Emisión',
+  dueDate: 'Fecha Vencimiento',
+  paid: 'Pagada',
+  pendingPayment: 'Pendiente',
+  overdue: 'Vencida',
+  paymentMethod: 'Medio de Pago',
+  paymentTerms: 'Condición de Pago',
+  viewInvoice: 'Ver Documento de Cobro',
+  noInvoicesFound: 'No se registran documentos de cobro pendientes.',
+  // Operations translations
+  operationsTitle: 'Órdenes de Trabajo y Entregables',
+  trackingTitle: 'Seguimiento en Tiempo Real',
+  orderNumber: 'N.º Orden',
+  operationType: 'Tipo de Operación',
+  dispatch: 'Entrega de suministros',
+  serviceExecution: 'Servicio de ingeniería y entregables',
+  progress: 'Progreso',
+  assignedStaff: 'Responsable Asignado',
+  scheduledDate: 'Fecha Programada',
+  trackingGuide: 'Guía de Despacho',
+  deliveryAddress: 'Dirección de Entrega',
+  noOperationsFound: 'No se registran órdenes operativas activas.',
+};
 
 interface ClientPortalProps {
   user: UserType;
@@ -62,7 +130,6 @@ export function ClientPortal({ user, onLogout, onOpenPublicLink, onSwitchUser }:
 
   const initialTab: PortalTab = (tab && (validTabs as readonly string[]).includes(tab)) ? (tab as PortalTab) : 'dashboard';
 
-  const [lang, setLang] = useState<Language>('es');
   const [activeTab, setActiveTabState] = useState<PortalTab>(initialTab);
 
   useEffect(() => {
@@ -101,8 +168,6 @@ export function ClientPortal({ user, onLogout, onOpenPublicLink, onSwitchUser }:
   const [portalAdjustmentMessage, setPortalAdjustmentMessage] = useState<string>('');
   const [portalActionLoading, setPortalActionLoading] = useState<boolean>(false);
   const [portalToast, setPortalToast] = useState<string | null>(null);
-
-  const t = portalTranslations[lang];
 
   useEffect(() => {
     loadPortalData(false);
@@ -209,7 +274,7 @@ export function ClientPortal({ user, onLogout, onOpenPublicLink, onSwitchUser }:
   // Calendar helpers
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
-  const monthName = currentDate.toLocaleString(lang === 'es' ? 'es-CL' : lang === 'de' ? 'de-DE' : 'en-US', {
+  const monthName = currentDate.toLocaleString('es-CL', {
     month: 'long',
     year: 'numeric',
   });
@@ -348,34 +413,11 @@ export function ClientPortal({ user, onLogout, onOpenPublicLink, onSwitchUser }:
           </nav>
         </div>
 
-        {/* Footer with theme, language and logout */}
+        {/* Footer with theme and logout */}
         <div className="pt-6 border-t border-slate-200 dark:border-slate-800 space-y-2">
           {/* Theme Selector */}
           <div className="flex justify-center">
             <ThemeSelector className="w-full justify-center" />
-          </div>
-
-          {/* Language picker */}
-          <div className="w-full h-10 min-h-[40px] max-h-[40px] flex items-center justify-between text-xs text-slate-600 dark:text-slate-400 px-3 bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-lg shrink-0">
-            <span className="flex items-center gap-1.5 font-medium">
-              <Globe className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-              Idioma:
-            </span>
-            <div className="flex gap-1">
-              {(['es', 'en', 'de'] as Language[]).map((l) => (
-                <button
-                  key={l}
-                  onClick={() => setLang(l)}
-                  className={`px-2 py-0.5 rounded text-[11px] font-bold cursor-pointer transition-colors ${
-                    lang === l
-                      ? 'bg-emerald-600 dark:bg-emerald-500 text-white dark:text-slate-950 shadow-xs'
-                      : 'bg-slate-200/70 dark:bg-slate-800 text-slate-700 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                  }`}
-                >
-                  {l.toUpperCase()}
-                </button>
-              ))}
-            </div>
           </div>
 
           <button

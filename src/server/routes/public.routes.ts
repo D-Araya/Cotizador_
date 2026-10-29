@@ -273,6 +273,9 @@ publicRouter.post('/quotations/:token/reject', (req: Request, res: Response) => 
     return sendProblem(res, 404, 'Cotización no encontrada', 'No existe.');
   }
 
+  if (quot.status === 'DRAFT') {
+    return sendProblem(res, 400, 'Estado inválido', 'Una cotización en borrador no puede ser desestimada por el cliente.');
+  }
   if (quot.status === 'ACCEPTED') {
     return sendProblem(res, 409, 'Conflicto', 'La cotización ya fue aceptada por el cliente.');
   }
@@ -332,6 +335,10 @@ publicRouter.post('/quotations/:token/request-adjustment', (req: Request, res: R
   const quot = state.quotations.find((q) => q.publicToken === req.params.token);
   if (!quot) {
     return sendProblem(res, 404, 'Cotización no encontrada', 'No existe.');
+  }
+
+  if (quot.status === 'DRAFT') {
+    return sendProblem(res, 400, 'Estado inválido', 'Una cotización en borrador no puede recibir solicitudes de ajuste.');
   }
 
   const customer = state.customers.find((c) => c.id === quot.customerId);

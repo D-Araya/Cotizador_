@@ -36,17 +36,15 @@ authRouter.post('/login', authLimiter, (req: Request, res: Response) => {
     user.role = 'ADMIN';
   }
 
-  // Si no tiene passwordHash (usuario creado sin hash), permitir inicialización o verificar scrypt
+  // Validar hash scrypt seguro de la contraseña
   if (user.passwordHash && user.passwordSalt) {
     const valid = verifyPassword(password, user.passwordHash, user.passwordSalt);
     if (!valid) {
       return sendProblem(res, 401, 'Credenciales inválidas', 'Usuario o contraseña no válidos.');
     }
   } else {
-    // Si no tiene hash asignado, hashear la contraseña actual como inicial
-    const { hash, salt } = hashPassword(password);
-    user.passwordHash = hash;
-    user.passwordSalt = salt;
+    // Si la cuenta no tiene credenciales configuradas (ej. contacto solo de portal), rechazar acceso por login estándar
+    return sendProblem(res, 401, 'Credenciales inválidas', 'Usuario o contraseña no válidos.');
   }
 
   // Generar token HMAC
@@ -127,7 +125,7 @@ authRouter.post('/magic-login', authLimiter, (req: Request, res: Response) => {
  * POST /api/v1/auth/switch-user
  * Solo permitido en desarrollo (NODE_ENV !== 'production') y exigiendo un ADMIN autenticado.
  */
-authRouter.post('/switch-user', (req: Request, res: Response, next) => {
+authRouter.post('/switch-user', authLimiter, (req: Request, res: Response, next) => {
   if (process.env.NODE_ENV === 'production') {
     return sendProblem(res, 403, 'No disponible', 'El cambio de usuario está deshabilitado en producción.');
   }

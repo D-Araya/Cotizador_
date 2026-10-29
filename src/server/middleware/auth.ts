@@ -32,22 +32,6 @@ export function authenticateStaff(req: Request, res: Response, next: NextFunctio
     return next();
   }
 
-  // Soporte para headers de prueba o simulación (x-user-id / x-user-role / x-user-name)
-  const headerUserId = req.headers['x-user-id'] as string;
-  const headerRole = req.headers['x-user-role'] as 'ADMIN' | 'SALES_REP';
-  const headerName = req.headers['x-user-name'] as string;
-
-  if (headerUserId || headerRole) {
-    const user = headerUserId ? dbStore.getState().users.find((u) => u.id === headerUserId) : undefined;
-    req.user = {
-      id: user?.id || headerUserId || 'usr-admin-01',
-      email: user?.email || 'admin@mlingenieria.cl',
-      role: headerRole || (user?.role as 'ADMIN' | 'SALES_REP') || 'ADMIN',
-      name: headerName || user?.name || 'Administrador',
-    };
-    return next();
-  }
-
   return sendProblem(res, 401, 'Unauthorized', 'Se requiere autenticación mediante Bearer token.');
 }
 

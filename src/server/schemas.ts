@@ -192,6 +192,20 @@ export const contactUpdateSchema = z.object({
 });
 
 // ==========================================
+// CATEGORY SCHEMAS (White-listed)
+// ==========================================
+export const categoryCreateSchema = z.object({
+  name: z.string().trim().min(2, 'El nombre de la categoría es requerido'),
+  description: z.string().trim().default(''),
+});
+
+export const categoryUpdateSchema = z.object({
+  name: z.string().trim().min(2).optional(),
+  description: z.string().trim().optional(),
+  active: z.boolean().optional(),
+});
+
+// ==========================================
 // CATALOG SCHEMAS (including Kits - P2.j)
 // ==========================================
 export const kitItemInputSchema = z.object({
@@ -328,6 +342,10 @@ export const geminiAnalyzeSchema = z.object({
   imageBase64: z.string().min(1, 'Imagen base64 requerida'),
   mimeType: z.string().regex(/^image\/(jpeg|png|webp|gif)$|^application\/pdf$/i, 'Tipo MIME de archivo no admitido'),
   prompt: z.string().max(2000).optional(),
+});
+
+export const geminiTtsSchema = z.object({
+  text: z.string().trim().min(1, 'Texto requerido para síntesis de voz').max(2000, 'El texto excede el máximo permitido para síntesis de voz'),
 });
 
 // ==========================================

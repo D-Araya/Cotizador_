@@ -3,7 +3,7 @@ import { dbStore } from '../../modules/db/store.js';
 import { authenticateStaff, requireAdmin } from '../middleware/auth.js';
 import { repos } from '../repositories/index.js';
 import { restoreBackupSchema } from '../schemas.js';
-import { sendProblem } from '../security.js';
+import { sendProblem, sanitizeObjectKeys } from '../security.js';
 import { AuditService } from '../services/audit.service.js';
 import { SeedService } from '../services/seed.service.js';
 
@@ -90,7 +90,7 @@ systemRouter.post('/system/restore', authenticateStaff, requireAdmin, async (req
     );
   }
 
-  const data = parseResult.data;
+  const data = sanitizeObjectKeys(parseResult.data);
   const state = dbStore.getState();
   const beforeCounts = {
     quotations: state.quotations.length,

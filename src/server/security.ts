@@ -103,6 +103,24 @@ export function sanitizeCsvValue(val: any): string {
 }
 
 /**
+ * Detecta y neutraliza intentos de polución de prototipos (__proto__, constructor, prototype)
+ */
+export function sanitizeObjectKeys<T>(obj: T): T {
+  if (!obj || typeof obj !== 'object') return obj;
+  if (Array.isArray(obj)) {
+    return obj.map(sanitizeObjectKeys) as unknown as T;
+  }
+  const clean: Record<string, any> = {};
+  for (const [key, val] of Object.entries(obj)) {
+    if (key === '__proto__' || key === 'constructor' || key === 'prototype') {
+      continue;
+    }
+    clean[key] = typeof val === 'object' && val !== null ? sanitizeObjectKeys(val) : val;
+  }
+  return clean as T;
+}
+
+/**
  * Envía una respuesta estandarizada según RFC 7807 Problem Details
  */
 export function sendProblem(

@@ -3,7 +3,12 @@ import crypto from 'node:crypto';
 import { dbStore } from '../../modules/db/store.js';
 import { authenticateStaff, requireAdmin } from '../middleware/auth.js';
 import { sendProblem } from '../security.js';
-import { catalogItemCreateSchema, catalogItemUpdateSchema } from '../schemas.js';
+import {
+  catalogItemCreateSchema,
+  catalogItemUpdateSchema,
+  categoryCreateSchema,
+  categoryUpdateSchema,
+} from '../schemas.js';
 
 export const catalogRouter = express.Router();
 
@@ -18,8 +23,12 @@ catalogRouter.get('/categories', (_req: Request, res: Response) => {
 });
 
 catalogRouter.post('/categories', requireAdmin, (req: Request, res: Response) => {
-  const { name, description } = req.body;
-  if (!name) return sendProblem(res, 400, 'Nombre requerido', 'El nombre de categoría es obligatorio');
+  const parsed = categoryCreateSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return sendProblem(res, 400, 'Datos incompletos', parsed.error.issues[0]?.message || 'El nombre de categoría es obligatorio');
+  }
+
+  const { name, description } = parsed.data;
   const newCat = {
     id: `cat-${crypto.randomUUID()}`,
     name,
@@ -31,10 +40,16 @@ catalogRouter.post('/categories', requireAdmin, (req: Request, res: Response) =>
 });
 
 catalogRouter.patch('/categories/:id', requireAdmin, (req: Request, res: Response) => {
+  const parsed = categoryUpdateSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return sendProblem(res, 400, 'Datos inválidos', parsed.error.issues[0]?.message || 'Estructura de categoría no válida');
+  }
+
   const state = dbStore.getState();
   const idx = state.categories.findIndex((c) => c.id === req.params.id);
   if (idx === -1) return sendProblem(res, 404, 'Categoría no encontrada', 'No existe.');
-  state.categories[idx] = { ...state.categories[idx], ...req.body };
+
+  state.categories[idx] = { ...state.categories[idx], ...parsed.data };
   res.json(state.categories[idx]);
 });
 

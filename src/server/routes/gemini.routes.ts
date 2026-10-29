@@ -2,7 +2,7 @@ import express, { Request, Response } from 'express';
 import { GoogleGenAI } from '@google/genai';
 import { authenticateStaff, requireStaff } from '../middleware/auth.js';
 import { geminiLimiter, sendProblem } from '../security.js';
-import { geminiChatSchema, geminiAnalyzeSchema } from '../schemas.js';
+import { geminiChatSchema, geminiAnalyzeSchema, geminiTtsSchema } from '../schemas.js';
 import { dbStore } from '../../modules/db/store.js';
 
 export const geminiRouter = express.Router();
@@ -78,10 +78,12 @@ geminiRouter.post('/chat', async (req: Request, res: Response) => {
  * POST /api/v1/gemini/tts
  */
 geminiRouter.post('/tts', async (req: Request, res: Response) => {
-  const { text } = req.body;
-  if (!text || typeof text !== 'string' || !text.trim()) {
-    return sendProblem(res, 400, 'Texto requerido', 'Debe proporcionar texto para sintetizar.');
+  const parsed = geminiTtsSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return sendProblem(res, 400, 'Datos inválidos', parsed.error.issues[0]?.message || 'Texto requerido');
   }
+
+  const { text } = parsed.data;
 
   try {
     const response = await ai.models.generateContent({

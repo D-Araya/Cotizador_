@@ -320,6 +320,10 @@ portalRouter.post('/quotations/:id/request-adjustment', (req: Request, res: Resp
     return sendProblem(res, 404, 'Cotización no encontrada', 'No existe o no pertenece a su empresa.');
   }
 
+  if (quot.status === 'DRAFT') {
+    return sendProblem(res, 400, 'Estado inválido', 'Una cotización en borrador no puede recibir solicitudes de ajuste.');
+  }
+
   const salesRepUser = state.users.find((u) => u.id === quot.salesRepId);
 
   const oldStatus = quot.status;
