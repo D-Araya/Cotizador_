@@ -101,10 +101,14 @@ function AppRoutes() {
       })
       .catch(() => {});
 
-    // Check magicToken in query params
+    // Check magicToken in query params and scrub immediately from URL bar/history
     const urlParams = new URLSearchParams(window.location.search);
     const magicToken = urlParams.get('magicToken');
     if (magicToken) {
+      urlParams.delete('magicToken');
+      const cleanSearch = urlParams.toString();
+      const cleanUrl = `${window.location.pathname}${cleanSearch ? `?${cleanSearch}` : ''}${window.location.hash}`;
+      window.history.replaceState({}, document.title, cleanUrl);
       handleMagicLogin(magicToken);
       return;
     }
@@ -164,11 +168,17 @@ function AppRoutes() {
       setActiveApiUser(res.data.user);
       setCurrentUser(res.data.user);
 
-      const targetPath = (location.state as any)?.from?.pathname;
+      const rawTargetPath = (location.state as { from?: { pathname?: unknown } } | null)?.from?.pathname;
+      const isSafeInternalAppPath =
+        typeof rawTargetPath === 'string' &&
+        rawTargetPath.startsWith('/app/') &&
+        !rawTargetPath.startsWith('//') &&
+        !rawTargetPath.includes('..');
+
       if (res.data.user.role === 'CUSTOMER_CONTACT') {
         navigate('/portal/dashboard', { replace: true });
-      } else if (targetPath && !targetPath.startsWith('/portal')) {
-        navigate(targetPath, { replace: true });
+      } else if (isSafeInternalAppPath) {
+        navigate(rawTargetPath, { replace: true });
       } else {
         navigate('/app/dashboard', { replace: true });
       }
@@ -330,7 +340,14 @@ function AppRoutes() {
           }
         >
           <Route index element={<Navigate to="/app/dashboard" replace />} />
-          <Route path="dashboard" element={<DashboardPage />} />
+          <Route
+            path="dashboard"
+            element={
+              <ProtectedRoute user={currentUser} permission="dashboard:own">
+                <DashboardPage />
+              </ProtectedRoute>
+            }
+          />
           <Route
             path="quotations"
             element={
@@ -347,7 +364,14 @@ function AppRoutes() {
               </ProtectedRoute>
             }
           />
-          <Route path="catalog" element={<CatalogPage />} />
+          <Route
+            path="catalog"
+            element={
+              <ProtectedRoute user={currentUser} permission="quotations:read_own">
+                <CatalogPage />
+              </ProtectedRoute>
+            }
+          />
           <Route
             path="invoices"
             element={

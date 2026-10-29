@@ -72,13 +72,7 @@ export function DashboardPage(props: DashboardPageProps) {
             <h2 className="text-base font-extrabold text-slate-900 dark:text-white tracking-tight">
               {isGlobalAdmin ? 'Panel General — Resumen Global Consolidado' : 'Panel General — Mi Resumen Comercial'}
             </h2>
-            <span
-              className={`text-[11px] font-bold px-2.5 py-0.5 rounded-md border ${
-                isGlobalAdmin
-                  ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800/60'
-                  : 'bg-sky-50 dark:bg-sky-950/60 text-sky-700 dark:text-sky-300 border-sky-200 dark:border-sky-800/60'
-              }`}
-            >
+            <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-md border bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800/60">
               {isGlobalAdmin ? 'Vista Global (Administrador)' : `Métricas Personales (${user.name})`}
             </span>
           </div>

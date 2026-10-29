@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Customer, User } from '../../modules/types.ts';
 import { Modal } from '../components/Modal.tsx';
+import { validateRut, formatRut } from '../../shared-kernel/rut.ts';
 
 interface CustomerModalProps {
   isOpen: boolean;
@@ -47,13 +48,20 @@ export function CustomerModal({
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!businessName.trim() || !taxId.trim()) return;
+    const cleanBusinessName = businessName.trim();
+    const cleanTaxId = taxId.trim();
+    if (!cleanBusinessName || !cleanTaxId) return;
+
+    if (!validateRut(cleanTaxId)) {
+      setError('El RUT ingresado no es válido (verifique el dígito verificador, ej. 76.543.210-4).');
+      return;
+    }
 
     setLoading(true);
     setError(null);
     const res = await onSave({
-      businessName: businessName.trim(),
-      taxId: taxId.trim(),
+      businessName: cleanBusinessName,
+      taxId: formatRut(cleanTaxId),
       address: address.trim() || undefined,
       salesRepId: salesRepId || undefined,
     });

@@ -193,14 +193,14 @@ export function AppLayout({
             {/* User role info */}
             <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-xs text-left">
               <div className="w-6 h-6 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-[10px] shrink-0">
-                {user.name.charAt(0)}
+                {(user?.name?.trim()?.charAt(0) || 'U').toUpperCase()}
               </div>
               <div className="hidden sm:block">
                 <span className="font-bold block leading-tight text-slate-800 dark:text-slate-200">
-                  {user.name}
+                  {user?.name || 'Usuario'}
                 </span>
                 <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">
-                  {user.role === 'ADMIN' ? 'Administrador' : 'Comercial'}
+                  {user?.role === 'ADMIN' ? 'Administrador' : 'Comercial'}
                 </span>
               </div>
             </div>
@@ -226,8 +226,8 @@ export function AppLayout({
                   onClick={() => onSwitchUser('smorales@mlingenieria.cl')}
                   className={`px-2 py-0.5 rounded font-medium text-[11px] cursor-pointer transition-colors ${
                     user.role === 'SALES_REP' && user.email === 'smorales@mlingenieria.cl'
-                      ? 'bg-sky-600 text-white shadow-xs font-bold'
-                      : 'bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:text-sky-600'
+                      ? 'bg-indigo-600 text-white shadow-xs font-bold'
+                      : 'bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:text-indigo-600'
                   }`}
                   title="Cambiar a Asesor Comercial (Sebastián Morales)"
                 >
@@ -236,7 +236,7 @@ export function AppLayout({
                 <button
                   type="button"
                   onClick={() => onSwitchUser('mbarrientos@australsalmon.cl')}
-                  className="px-2 py-0.5 rounded bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:text-emerald-600 font-medium text-[11px] cursor-pointer transition-colors"
+                  className="px-2 py-0.5 rounded bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:text-indigo-600 font-medium text-[11px] cursor-pointer transition-colors"
                   title="Abrir Portal Cliente (Ing. Matías Barrientos)"
                 >
                   Cliente

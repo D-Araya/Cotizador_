@@ -41,7 +41,7 @@ import {
   InvoicesGridSkeleton,
   OperationsGridSkeleton,
 } from './Skeleton.tsx';
-import { apiRequest, subscribeToQuotationSync, notifyQuotationSync } from '../api.ts';
+import { apiRequest, subscribeToQuotationSync, notifyQuotationSync, sanitizeSafeUrl } from '../api.ts';
 import { formatMoney } from '../../shared-kernel/formatMoney.ts';
 
 const t = {
@@ -289,55 +289,46 @@ export function ClientPortal({ user, onLogout, onOpenPublicLink, onSwitchUser }:
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 flex flex-col md:flex-row transition-colors">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col md:flex-row transition-colors">
       {/* SIDEBAR */}
-      <aside className="w-full md:w-64 bg-white dark:bg-slate-950 border-r border-slate-200 dark:border-slate-800 p-5 flex flex-col justify-between shrink-0 text-slate-800 dark:text-slate-100 transition-colors">
+      <aside className="w-full md:w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 p-5 flex flex-col justify-between shrink-0 text-slate-800 dark:text-slate-100 transition-colors">
         <div className="space-y-6">
           {/* Brand */}
           <div className="flex items-center gap-3 h-12 shrink-0">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center font-extrabold text-slate-950 shadow-md shrink-0">
+            <div className="w-9 h-9 rounded-xl bg-indigo-600 flex items-center justify-center font-extrabold text-white shadow-md shrink-0">
               C
             </div>
             <div className="min-w-0">
               <span className="font-bold text-sm tracking-tight text-slate-900 dark:text-white block truncate">
                 {t.portalTitle}
               </span>
-              <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium block truncate">Autoservicio B2B</span>
+              <span className="text-[11px] text-indigo-600 dark:text-indigo-400 font-medium block truncate">Autoservicio B2B</span>
             </div>
-          </div>
-
-          {/* User profile */}
-          <div className="h-[68px] flex flex-col justify-center p-3 rounded-xl bg-slate-50 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 space-y-1 shrink-0">
-            <div className="flex items-center gap-2">
-              <User className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-              <span className="text-xs font-semibold text-slate-900 dark:text-white truncate">{user.name}</span>
-            </div>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">{user.email}</p>
           </div>
 
           {/* Navigation */}
           <nav className="space-y-1">
             <button
               onClick={() => setActiveTab('dashboard')}
-              className={`w-full h-10 min-h-[40px] max-h-[40px] flex items-center gap-3 px-3 rounded-lg text-xs font-medium transition-colors cursor-pointer shrink-0 ${
+              className={`w-full h-10 min-h-[40px] max-h-[40px] flex items-center gap-3 px-3 rounded-lg text-xs font-semibold transition-colors cursor-pointer shrink-0 ${
                 activeTab === 'dashboard'
-                  ? 'bg-emerald-600 text-white shadow-sm'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-900'
+                  ? 'bg-indigo-600 text-white shadow-xs'
+                  : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
               }`}
             >
-              <LayoutDashboard className="w-4 h-4 shrink-0" />
+              <LayoutDashboard className={`w-4 h-4 shrink-0 ${activeTab === 'dashboard' ? 'text-white' : 'text-slate-400'}`} />
               <span>{t.dashboard}</span>
             </button>
 
             <button
               onClick={() => setActiveTab('quotations')}
-              className={`w-full h-10 min-h-[40px] max-h-[40px] flex items-center gap-3 px-3 rounded-lg text-xs font-medium transition-colors cursor-pointer shrink-0 ${
+              className={`w-full h-10 min-h-[40px] max-h-[40px] flex items-center gap-3 px-3 rounded-lg text-xs font-semibold transition-colors cursor-pointer shrink-0 ${
                 activeTab === 'quotations'
-                  ? 'bg-emerald-600 text-white shadow-sm'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-900'
+                  ? 'bg-indigo-600 text-white shadow-xs'
+                  : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
               }`}
             >
-              <FileText className="w-4 h-4 shrink-0" />
+              <FileText className={`w-4 h-4 shrink-0 ${activeTab === 'quotations' ? 'text-white' : 'text-slate-400'}`} />
               <span>{t.quotations}</span>
               {summary.pending > 0 && (
                 <span className="ml-auto shrink-0 bg-amber-500 text-slate-950 px-1.5 py-0.2 rounded-full font-bold text-[10px]">
@@ -348,43 +339,43 @@ export function ClientPortal({ user, onLogout, onOpenPublicLink, onSwitchUser }:
 
             <button
               onClick={() => setActiveTab('calendar')}
-              className={`w-full h-10 min-h-[40px] max-h-[40px] flex items-center gap-3 px-3 rounded-lg text-xs font-medium transition-colors cursor-pointer shrink-0 ${
+              className={`w-full h-10 min-h-[40px] max-h-[40px] flex items-center gap-3 px-3 rounded-lg text-xs font-semibold transition-colors cursor-pointer shrink-0 ${
                 activeTab === 'calendar'
-                  ? 'bg-emerald-600 text-white shadow-sm'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-900'
+                  ? 'bg-indigo-600 text-white shadow-xs'
+                  : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
               }`}
             >
-              <CalendarIcon className="w-4 h-4 shrink-0" />
+              <CalendarIcon className={`w-4 h-4 shrink-0 ${activeTab === 'calendar' ? 'text-white' : 'text-slate-400'}`} />
               <span>{t.calendar}</span>
             </button>
 
             <button
               onClick={() => setActiveTab('timeline')}
-              className={`w-full h-10 min-h-[40px] max-h-[40px] flex items-center gap-3 px-3 rounded-lg text-xs font-medium transition-colors cursor-pointer shrink-0 ${
+              className={`w-full h-10 min-h-[40px] max-h-[40px] flex items-center gap-3 px-3 rounded-lg text-xs font-semibold transition-colors cursor-pointer shrink-0 ${
                 activeTab === 'timeline'
-                  ? 'bg-emerald-600 text-white shadow-sm'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-900'
+                  ? 'bg-indigo-600 text-white shadow-xs'
+                  : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
               }`}
             >
-              <History className="w-4 h-4 shrink-0" />
+              <History className={`w-4 h-4 shrink-0 ${activeTab === 'timeline' ? 'text-white' : 'text-slate-400'}`} />
               <span>{t.timeline}</span>
             </button>
 
             {/* Invoices tab (ENABLED) */}
             <button
               onClick={() => setActiveTab('invoices')}
-              className={`w-full h-10 min-h-[40px] max-h-[40px] flex items-center gap-3 px-3 rounded-lg text-xs font-medium transition-colors cursor-pointer shrink-0 ${
+              className={`w-full h-10 min-h-[40px] max-h-[40px] flex items-center gap-3 px-3 rounded-lg text-xs font-semibold transition-colors cursor-pointer shrink-0 ${
                 activeTab === 'invoices'
-                  ? 'bg-emerald-600 text-white shadow-sm'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-900'
+                  ? 'bg-indigo-600 text-white shadow-xs'
+                  : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
               }`}
             >
-              <Receipt className={`w-4 h-4 shrink-0 ${activeTab === 'invoices' ? 'text-white' : 'text-emerald-600 dark:text-emerald-400'}`} />
+              <Receipt className={`w-4 h-4 shrink-0 ${activeTab === 'invoices' ? 'text-white' : 'text-slate-400'}`} />
               <span>{t.invoices}</span>
               <span className={`ml-auto shrink-0 px-1.5 py-0.2 rounded-full font-mono text-[10px] ${
                 activeTab === 'invoices'
-                  ? 'bg-emerald-700 text-white'
-                  : 'bg-emerald-50 dark:bg-slate-800 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-900/50'
+                  ? 'bg-indigo-700 text-white'
+                  : 'bg-indigo-50 dark:bg-slate-800 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-900/50'
               }`}>
                 {invoices.length}
               </span>
@@ -393,39 +384,23 @@ export function ClientPortal({ user, onLogout, onOpenPublicLink, onSwitchUser }:
             {/* Operations tab (ENABLED) */}
             <button
               onClick={() => setActiveTab('operations')}
-              className={`w-full h-10 min-h-[40px] max-h-[40px] flex items-center gap-3 px-3 rounded-lg text-xs font-medium transition-colors cursor-pointer shrink-0 ${
+              className={`w-full h-10 min-h-[40px] max-h-[40px] flex items-center gap-3 px-3 rounded-lg text-xs font-semibold transition-colors cursor-pointer shrink-0 ${
                 activeTab === 'operations'
-                  ? 'bg-emerald-600 text-white shadow-sm'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-900'
+                  ? 'bg-indigo-600 text-white shadow-xs'
+                  : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
               }`}
             >
-              <Truck className={`w-4 h-4 shrink-0 ${activeTab === 'operations' ? 'text-white' : 'text-emerald-600 dark:text-emerald-400'}`} />
+              <Truck className={`w-4 h-4 shrink-0 ${activeTab === 'operations' ? 'text-white' : 'text-slate-400'}`} />
               <span>{t.operations}</span>
               <span className={`ml-auto shrink-0 px-1.5 py-0.2 rounded-full font-mono text-[10px] ${
                 activeTab === 'operations'
-                  ? 'bg-emerald-700 text-white'
-                  : 'bg-emerald-50 dark:bg-slate-800 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-900/50'
+                  ? 'bg-indigo-700 text-white'
+                  : 'bg-indigo-50 dark:bg-slate-800 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-900/50'
               }`}>
                 {operations.length}
               </span>
             </button>
           </nav>
-        </div>
-
-        {/* Footer with theme and logout */}
-        <div className="pt-6 border-t border-slate-200 dark:border-slate-800 space-y-2">
-          {/* Theme Selector */}
-          <div className="flex justify-center">
-            <ThemeSelector className="w-full justify-center" />
-          </div>
-
-          <button
-            onClick={onLogout}
-            className="w-full h-10 min-h-[40px] max-h-[40px] flex items-center justify-center gap-2 px-3 rounded-lg border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:border-rose-200 dark:hover:border-rose-900/50 hover:bg-rose-50/60 dark:hover:bg-rose-950/20 text-xs font-medium cursor-pointer transition-colors shrink-0"
-          >
-            <LogOut className="w-3.5 h-3.5 shrink-0" />
-            <span>{t.logout}</span>
-          </button>
         </div>
       </aside>
 
@@ -443,12 +418,12 @@ export function ClientPortal({ user, onLogout, onOpenPublicLink, onSwitchUser }:
               {activeTab === 'operations' && t.operationsTitle}
             </h1>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              {t.welcomeBack}, <span className="text-emerald-600 dark:text-emerald-400 font-semibold">{user.name}</span>.
+              {t.welcomeBack}, <span className="text-indigo-600 dark:text-indigo-400 font-semibold">{user.name}</span>.
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5">
-            <span className="text-xs px-3 py-1 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700 font-mono">
+            <span className="text-xs px-3 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 font-mono">
               Austral Salmón &amp; Mar SpA
             </span>
 
@@ -457,9 +432,9 @@ export function ClientPortal({ user, onLogout, onOpenPublicLink, onSwitchUser }:
               onClick={() => loadPortalData(false)}
               disabled={isSyncing}
               title={`Última sincronización: ${lastSyncTime.toLocaleTimeString('es-CL')}`}
-              className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-lg bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 transition-colors cursor-pointer"
+              className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-lg bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition-colors cursor-pointer"
             >
-              <RotateCcw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin text-emerald-600' : ''}`} />
+              <RotateCcw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin text-indigo-600' : ''}`} />
               <span className="hidden sm:inline">Sincronizado</span>
             </button>
 
@@ -469,33 +444,47 @@ export function ClientPortal({ user, onLogout, onOpenPublicLink, onSwitchUser }:
                 <span className="text-[10px] uppercase font-bold text-slate-500 px-1 hidden md:inline">Ver como:</span>
                 <button
                   onClick={() => onSwitchUser('admin@mlingenieria.cl')}
-                  className="px-2 py-0.5 rounded bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200 font-medium hover:text-indigo-600 shadow-xs cursor-pointer text-[11px]"
+                  className="px-2 py-0.5 rounded bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-medium hover:text-indigo-600 shadow-xs cursor-pointer text-[11px]"
                   title="Cambiar a Portal Admin (Victoria Villegas)"
                 >
                   Admin
                 </button>
                 <button
                   onClick={() => onSwitchUser('smorales@mlingenieria.cl')}
-                  className="px-2 py-0.5 rounded bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200 font-medium hover:text-sky-600 shadow-xs cursor-pointer text-[11px]"
+                  className="px-2 py-0.5 rounded bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-medium hover:text-indigo-600 shadow-xs cursor-pointer text-[11px]"
                   title="Cambiar a Portal Asesor (Sebastián Morales)"
                 >
                   Asesor
                 </button>
               </div>
             )}
+
+            {/* Theme Selector */}
+            <ThemeSelector />
+
+            {/* Logout button */}
+            <button
+              type="button"
+              onClick={onLogout}
+              aria-label={t.logout}
+              title={t.logout}
+              className="p-2 rounded-lg text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 focus:outline-none focus:ring-2 focus:ring-rose-500 cursor-pointer"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
           </div>
         </div>
 
         {/* Portal Toast Banner */}
         {portalToast && (
-          <div className="mt-4 p-3.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-300 dark:border-emerald-700/60 text-emerald-800 dark:text-emerald-200 text-xs font-semibold flex items-center justify-between shadow-xs animate-in fade-in duration-200">
+          <div className="mt-4 p-3.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-200 dark:border-indigo-700/60 text-indigo-800 dark:text-indigo-200 text-xs font-semibold flex items-center justify-between shadow-xs animate-in fade-in duration-200">
             <div className="flex items-center gap-2">
-              <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+              <Check className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
               <span>{portalToast}</span>
             </div>
             <button
               onClick={() => setPortalToast(null)}
-              className="text-emerald-700 dark:text-emerald-300 hover:text-emerald-900 dark:hover:text-white cursor-pointer text-xs font-bold px-2 py-0.5"
+              className="text-indigo-700 dark:text-indigo-300 hover:text-indigo-900 dark:hover:text-white cursor-pointer text-xs font-bold px-2 py-0.5"
             >
               ✕
             </button>
@@ -562,15 +551,15 @@ export function ClientPortal({ user, onLogout, onOpenPublicLink, onSwitchUser }:
 
                 {/* Quick overview of Invoices & Operations */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="p-4 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 shadow-xs space-y-2">
+                  <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-2">
-                        <Receipt className="w-4 h-4 text-emerald-500 dark:text-emerald-400" />
+                        <Receipt className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
                         {t.invoices}
                       </span>
                       <button
                         onClick={() => setActiveTab('invoices')}
-                        className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold hover:underline"
+                        className="text-[11px] text-indigo-600 dark:text-indigo-400 font-semibold hover:underline cursor-pointer"
                       >
                         Ver todas &rarr;
                       </button>
@@ -581,22 +570,22 @@ export function ClientPortal({ user, onLogout, onOpenPublicLink, onSwitchUser }:
                     </p>
                   </div>
 
-                  <div className="p-4 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 shadow-xs space-y-2">
+                  <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-2">
-                        <Truck className="w-4 h-4 text-emerald-500 dark:text-emerald-400" />
+                        <Truck className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
                         {t.operations}
                       </span>
                       <button
                         onClick={() => setActiveTab('operations')}
-                        className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold hover:underline"
+                        className="text-[11px] text-indigo-600 dark:text-indigo-400 font-semibold hover:underline cursor-pointer"
                       >
                         Ver seguimiento &rarr;
                       </button>
                     </div>
                     <p className="text-xs text-slate-600 dark:text-slate-400">
                       Órdenes activas en curso:{' '}
-                      <strong className="text-emerald-600 dark:text-emerald-400 font-mono">
+                      <strong className="text-indigo-600 dark:text-indigo-400 font-mono">
                         {operations.filter((o) => o.status !== 'COMPLETED').length} en proceso
                       </strong>
                     </p>
@@ -604,12 +593,12 @@ export function ClientPortal({ user, onLogout, onOpenPublicLink, onSwitchUser }:
                 </div>
 
                 {/* Recent Quotes */}
-                <div className="bg-white dark:bg-slate-950 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 space-y-4 shadow-xs">
+                <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 space-y-4 shadow-xs">
                   <div className="flex items-center justify-between">
                     <h3 className="font-bold text-slate-900 dark:text-white text-sm">Cotizaciones Recientes</h3>
                     <button
                       onClick={() => setActiveTab('quotations')}
-                      className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold hover:underline cursor-pointer"
+                      className="text-xs text-indigo-600 dark:text-indigo-400 font-semibold hover:underline cursor-pointer"
                     >
                       Ver todas &rarr;
                     </button>
@@ -619,7 +608,7 @@ export function ClientPortal({ user, onLogout, onOpenPublicLink, onSwitchUser }:
                     {quotations.slice(0, 5).map((q) => (
                       <div
                         key={q.id}
-                        className="py-3 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-900/50 px-2 rounded-lg transition-colors"
+                        className="py-3 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800/50 px-2 rounded-lg transition-colors"
                       >
                         <div className="space-y-0.5">
                           <div className="flex items-center gap-2">
@@ -635,7 +624,7 @@ export function ClientPortal({ user, onLogout, onOpenPublicLink, onSwitchUser }:
 
                         <button
                           onClick={() => handleOpenClientQuote(q)}
-                          className="px-3 py-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-600/20 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-transparent hover:bg-emerald-600 hover:text-white transition-colors text-xs font-medium cursor-pointer flex items-center gap-1.5"
+                          className="px-3 py-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-600 hover:text-white transition-colors text-xs font-medium cursor-pointer flex items-center gap-1.5"
                         >
                           <ExternalLink className="w-3.5 h-3.5" />
                           {t.viewDetails}
@@ -680,7 +669,7 @@ export function ClientPortal({ user, onLogout, onOpenPublicLink, onSwitchUser }:
                 </div>
 
                 {/* Invoices Table */}
-                <div className="bg-white dark:bg-slate-950 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs overflow-hidden">
+                <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs overflow-hidden">
                   <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center">
                     <h3 className="font-bold text-slate-900 dark:text-white text-sm">{t.invoicesTitle}</h3>
                     <span className="text-xs text-slate-500 dark:text-slate-400">Vinculadas a cotizaciones aprobadas</span>
@@ -693,7 +682,7 @@ export function ClientPortal({ user, onLogout, onOpenPublicLink, onSwitchUser }:
                   ) : (
                     <div className="overflow-x-auto">
                       <table className="w-full text-left text-xs">
-                        <thead className="bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-400 font-semibold border-b border-slate-200 dark:border-slate-800">
+                        <thead className="bg-slate-50 dark:bg-slate-800/80 text-slate-600 dark:text-slate-400 font-semibold border-b border-slate-200 dark:border-slate-800">
                           <tr>
                             <th className="py-3 px-4">{t.invoiceNumber}</th>
                             <th className="py-3 px-3">Cotización Ref.</th>
@@ -706,11 +695,11 @@ export function ClientPortal({ user, onLogout, onOpenPublicLink, onSwitchUser }:
                         </thead>
                         <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                           {invoices.map((inv) => (
-                            <tr key={inv.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors">
+                            <tr key={inv.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
                               <td className="py-3 px-4 font-mono font-bold text-slate-900 dark:text-white">
                                 {inv.invoiceNumber}
                               </td>
-                              <td className="py-3 px-3 font-mono text-emerald-600 dark:text-emerald-400 font-bold">
+                              <td className="py-3 px-3 font-mono text-indigo-600 dark:text-indigo-400 font-bold">
                                 {inv.quotationNumber}
                               </td>
                               <td className="py-3 px-3 text-slate-600 dark:text-slate-300">{inv.issueDate}</td>
@@ -740,7 +729,7 @@ export function ClientPortal({ user, onLogout, onOpenPublicLink, onSwitchUser }:
                               <td className="py-3 px-4 text-right">
                                 <button
                                   onClick={() => setSelectedInvoice(inv)}
-                                  className="px-3 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-600/20 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-transparent hover:bg-emerald-600 hover:text-white transition-colors text-xs font-medium cursor-pointer inline-flex items-center gap-1.5"
+                                  className="px-3 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-600 hover:text-white transition-colors text-xs font-medium cursor-pointer inline-flex items-center gap-1.5"
                                 >
                                   <Receipt className="w-3.5 h-3.5" />
                                   {t.viewInvoice}
@@ -772,15 +761,15 @@ export function ClientPortal({ user, onLogout, onOpenPublicLink, onSwitchUser }:
                   {operations.map((op) => (
                     <div
                       key={op.id}
-                      className="p-5 rounded-2xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-4 shadow-xs"
+                      className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-4 shadow-xs"
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="space-y-1">
                           <div className="flex items-center gap-2">
-                            <span className="font-mono text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                            <span className="font-mono text-xs font-bold text-indigo-600 dark:text-indigo-400">
                               {op.orderNumber}
                             </span>
-                            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300">
+                            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300">
                               Cotiz: {op.quotationNumber}
                             </span>
                           </div>
@@ -816,18 +805,18 @@ export function ClientPortal({ user, onLogout, onOpenPublicLink, onSwitchUser }:
                       <div className="space-y-1.5">
                         <div className="flex justify-between text-[11px]">
                           <span className="text-slate-500 dark:text-slate-400">{t.progress}</span>
-                          <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">{op.progressPct}%</span>
+                          <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400">{op.progressPct}%</span>
                         </div>
                         <div className="w-full h-2 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
                           <div
-                            className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 transition-all duration-500"
+                            className="h-full bg-indigo-600 dark:bg-indigo-500 transition-all duration-500"
                             style={{ width: `${op.progressPct}%` }}
                           />
                         </div>
                       </div>
 
                       {/* Details list */}
-                      <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800/80 space-y-1.5 text-xs text-slate-700 dark:text-slate-300">
+                      <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 space-y-1.5 text-xs text-slate-700 dark:text-slate-300">
                         <div className="flex justify-between">
                           <span className="text-slate-500">{t.assignedStaff}:</span>
                           <span className="font-medium text-slate-800 dark:text-slate-200">{op.assignedStaff}</span>
@@ -839,7 +828,7 @@ export function ClientPortal({ user, onLogout, onOpenPublicLink, onSwitchUser }:
                         {op.guideNumber && (
                           <div className="flex justify-between">
                             <span className="text-slate-500">{t.trackingGuide}:</span>
-                            <span className="font-mono text-emerald-600 dark:text-emerald-400 font-bold">{op.guideNumber}</span>
+                            <span className="font-mono text-indigo-600 dark:text-indigo-400 font-bold">{op.guideNumber}</span>
                           </div>
                         )}
                         {op.deliveryAddress && (
@@ -922,9 +911,9 @@ export function ClientPortal({ user, onLogout, onOpenPublicLink, onSwitchUser }:
                                   </span>
                                   {del.link && (
                                     <a
-                                      href={del.link}
+                                      href={sanitizeSafeUrl(del.link, false)}
                                       target="_blank"
-                                      rel="noreferrer"
+                                      rel="noopener noreferrer"
                                       className="text-indigo-600 dark:text-indigo-400 hover:underline text-[11px] block"
                                     >
                                       Descargar / Ver entregable
@@ -935,9 +924,9 @@ export function ClientPortal({ user, onLogout, onOpenPublicLink, onSwitchUser }:
                                       {((del as any).attachments as any[]).map((att) => (
                                         <a
                                           key={att.id}
-                                          href={att.url}
+                                          href={sanitizeSafeUrl(att.url)}
                                           target="_blank"
-                                          rel="noreferrer"
+                                          rel="noopener noreferrer"
                                           className="text-indigo-600 dark:text-indigo-400 hover:underline text-[11px] flex items-center gap-1"
                                         >
                                           🔗 {att.name}
@@ -972,7 +961,7 @@ export function ClientPortal({ user, onLogout, onOpenPublicLink, onSwitchUser }:
             {/* TAB: QUOTATIONS LIST                                     */}
             {/* ======================================================== */}
             {activeTab === 'quotations' && (
-              <div className="bg-white dark:bg-slate-950 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs overflow-hidden">
+              <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs overflow-hidden">
                 <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center">
                   <h3 className="font-bold text-slate-900 dark:text-white text-sm">{t.quotations}</h3>
                   <span className="text-xs text-slate-500 dark:text-slate-400">{quotations.length} propuestas registradas</span>
@@ -980,7 +969,7 @@ export function ClientPortal({ user, onLogout, onOpenPublicLink, onSwitchUser }:
 
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs">
-                    <thead className="bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-400 font-semibold border-b border-slate-200 dark:border-slate-800">
+                    <thead className="bg-slate-50 dark:bg-slate-800/80 text-slate-600 dark:text-slate-400 font-semibold border-b border-slate-200 dark:border-slate-800">
                       <tr>
                         <th className="py-3 px-4">{t.number}</th>
                         <th className="py-3 px-3">{t.date}</th>
@@ -991,7 +980,7 @@ export function ClientPortal({ user, onLogout, onOpenPublicLink, onSwitchUser }:
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                       {quotations.map((q) => (
-                        <tr key={q.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors">
+                        <tr key={q.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
                           <td className="py-3 px-4 font-mono font-bold text-slate-900 dark:text-white">
                             <div className="flex items-center gap-1.5 flex-wrap">
                               <span>{q.quotationNumber}</span>
@@ -1020,7 +1009,7 @@ export function ClientPortal({ user, onLogout, onOpenPublicLink, onSwitchUser }:
                           <td className="py-3 px-3 text-slate-600 dark:text-slate-300">
                             {new Date(q.createdAt).toLocaleDateString()}
                           </td>
-                          <td className="py-3 px-3 font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                          <td className="py-3 px-3 font-mono font-bold text-indigo-600 dark:text-indigo-400">
                             {formatMoney(q.grandTotal ?? q.total)}
                           </td>
                           <td className="py-3 px-3">
@@ -1037,7 +1026,7 @@ export function ClientPortal({ user, onLogout, onOpenPublicLink, onSwitchUser }:
                             </button>
                             <button
                               onClick={() => handleOpenClientQuote(q)}
-                              className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-medium text-xs hover:bg-emerald-500 cursor-pointer transition-colors inline-flex items-center gap-1.5"
+                              className="px-3 py-1.5 rounded-lg bg-indigo-600 text-white font-medium text-xs hover:bg-indigo-700 cursor-pointer transition-colors inline-flex items-center gap-1.5"
                               title="Ver documento completo o imprimir PDF"
                             >
                               <Eye className="w-3.5 h-3.5" />
@@ -1056,7 +1045,7 @@ export function ClientPortal({ user, onLogout, onOpenPublicLink, onSwitchUser }:
             {/* TAB: CALENDAR                                            */}
             {/* ======================================================== */}
             {activeTab === 'calendar' && (
-              <div className="bg-white dark:bg-slate-950 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 space-y-4 shadow-xs">
+              <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 space-y-4 shadow-xs">
                 <div className="flex items-center justify-between">
                   <div>
                     <h3 className="font-bold text-slate-900 dark:text-white text-base capitalize">{monthName}</h3>
@@ -1067,13 +1056,13 @@ export function ClientPortal({ user, onLogout, onOpenPublicLink, onSwitchUser }:
                   <div className="flex items-center gap-2">
                     <button
                       onClick={prevMonth}
-                      className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:text-white border border-slate-200 dark:border-slate-800 cursor-pointer"
+                      className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:text-white border border-slate-200 dark:border-slate-700 cursor-pointer"
                     >
                       <ChevronLeft className="w-4 h-4" />
                     </button>
                     <button
                       onClick={nextMonth}
-                      className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:text-white border border-slate-200 dark:border-slate-800 cursor-pointer"
+                      className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:text-white border border-slate-200 dark:border-slate-700 cursor-pointer"
                     >
                       <ChevronRight className="w-4 h-4" />
                     </button>
@@ -1093,7 +1082,7 @@ export function ClientPortal({ user, onLogout, onOpenPublicLink, onSwitchUser }:
 
                 <div className="grid grid-cols-7 gap-2">
                   {Array.from({ length: firstDayIndex }).map((_, i) => (
-                    <div key={`empty-${i}`} className="h-24 rounded-lg bg-slate-50/50 dark:bg-slate-900/30 border border-slate-200/50 dark:border-slate-900" />
+                    <div key={`empty-${i}`} className="h-24 rounded-lg bg-slate-50/50 dark:bg-slate-800/30 border border-slate-200/50 dark:border-slate-800" />
                   ))}
 
                   {Array.from({ length: daysInMonth }).map((_, i) => {
@@ -1104,7 +1093,7 @@ export function ClientPortal({ user, onLogout, onOpenPublicLink, onSwitchUser }:
                     return (
                       <div
                         key={`day-${day}`}
-                        className="h-24 p-1.5 rounded-lg bg-slate-50/80 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800/80 flex flex-col justify-between overflow-hidden"
+                        className="h-24 p-1.5 rounded-lg bg-slate-50/80 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 flex flex-col justify-between overflow-hidden"
                       >
                         <span className="text-[11px] font-mono text-slate-600 dark:text-slate-400 font-semibold self-start">
                           {day}
@@ -1139,7 +1128,7 @@ export function ClientPortal({ user, onLogout, onOpenPublicLink, onSwitchUser }:
             {/* TAB: TIMELINE                                            */}
             {/* ======================================================== */}
             {activeTab === 'timeline' && (
-              <div className="bg-white dark:bg-slate-950 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 space-y-4 shadow-xs">
+              <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 space-y-4 shadow-xs">
                 <h3 className="font-bold text-slate-900 dark:text-white text-base">Historial Cronológico de Cotizaciones</h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
                   Trazabilidad completa de las propuestas enviadas, visualizaciones y decisiones registradas.
@@ -1148,7 +1137,7 @@ export function ClientPortal({ user, onLogout, onOpenPublicLink, onSwitchUser }:
                 <div className="relative pl-6 space-y-6 before:content-[''] before:absolute before:left-2 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-200 dark:before:bg-slate-800">
                   {timeline.map((entry, idx) => (
                     <div key={idx} className="relative space-y-1">
-                      <div className="absolute -left-[22px] top-1 w-3 h-3 rounded-full bg-emerald-500 ring-4 ring-white dark:ring-slate-950" />
+                      <div className="absolute -left-[22px] top-1 w-3 h-3 rounded-full bg-indigo-600 dark:bg-indigo-500 ring-4 ring-white dark:ring-slate-900" />
                       <div className="flex items-center gap-2">
                         <span className="font-mono font-bold text-slate-900 dark:text-white text-xs">
                           {entry.quotationNumber}
@@ -1158,7 +1147,7 @@ export function ClientPortal({ user, onLogout, onOpenPublicLink, onSwitchUser }:
                           {entry.timestamp ? new Date(entry.timestamp).toLocaleString() : ''}
                         </span>
                       </div>
-                      <p className="text-xs text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-900/60 p-2.5 rounded-lg border border-slate-200 dark:border-slate-800">
+                      <p className="text-xs text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/60 p-2.5 rounded-lg border border-slate-200 dark:border-slate-700">
                         {entry.comment} &mdash; <span className="text-slate-500 dark:text-slate-400">Por {entry.actor}</span>
                       </p>
                     </div>

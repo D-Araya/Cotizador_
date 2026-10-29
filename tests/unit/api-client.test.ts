@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { apiRequest } from '../../src/ui/api.ts';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { apiRequest, parseSafeApiUser, sanitizeSafeUrl, escapeHtml } from '../../src/ui/api.ts';
 
 describe('apiRequest Client Helper Tests', () => {
   const originalFetch = global.fetch;
@@ -83,11 +83,58 @@ describe('apiRequest Client Helper Tests', () => {
       },
     });
 
-    expect(fetchMock).toHaveBeenCalledWith('/api/v1/auth/me', {
-      headers: {
-        'Content-Type': 'application/json',
-        'x-user-id': 'usr-admin-01',
-      },
-    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/v1/auth/me',
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          'Content-Type': 'application/json',
+          'x-user-id': 'usr-admin-01',
+        }),
+      })
+    );
   });
 });
+
+describe('Frontend Security Helpers (parseSafeApiUser, sanitizeSafeUrl, escapeHtml)', () => {
+  it('parseSafeApiUser rechaza JSON corrupto, tipos primitivos o esquemas incompletos con fallback null', () => {
+    expect(parseSafeApiUser('{invalid-json')).toBeNull();
+    expect(parseSafeApiUser('"solo-un-string"')).toBeNull();
+    expect(parseSafeApiUser('12345')).toBeNull();
+    expect(parseSafeApiUser('[]')).toBeNull();
+    expect(parseSafeApiUser(JSON.stringify({ id: 'u1', role: 'ADMIN' }))).toBeNull(); // Falta name
+    expect(parseSafeApiUser(JSON.stringify({ id: 'u1', name: 'Test', role: 'SUPER_HACKER' }))).toBeNull(); // Rol inválido
+  });
+
+  it('parseSafeApiUser ignora permisos inyectados manualmente en localStorage y asigna los permisos canónicos del rol', () => {
+    const tamperedPayload = JSON.stringify({
+      id: 'usr-sales-01',
+      name: 'Sebastián Morales',
+      role: 'SALES_REP',
+      permissions: ['users:manage', 'dashboard:global', 'quotations:read_all'],
+    });
+
+    const user = parseSafeApiUser(tamperedPayload);
+    expect(user).not.toBeNull();
+    expect(user?.role).toBe('SALES_REP');
+    expect(user?.permissions).not.toContain('users:manage');
+    expect(user?.permissions).not.toContain('dashboard:global');
+    expect(user?.permissions).toContain('dashboard:own');
+  });
+
+  it('sanitizeSafeUrl bloquea esquemas peligrosos (javascript:, vbscript:, data:text/html, //evil.com)', () => {
+    expect(sanitizeSafeUrl('javascript:alert(document.cookie)')).toBe('#');
+    expect(sanitizeSafeUrl('  JAVASCRIPT:alert(1) ')).toBe('#');
+    expect(sanitizeSafeUrl('vbscript:msgbox(1)')).toBe('#');
+    expect(sanitizeSafeUrl('data:text/html;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg==')).toBe('#');
+    expect(sanitizeSafeUrl('data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=')).toBe('#');
+    expect(sanitizeSafeUrl('//evil.attacker.com/phishing')).toBe('#');
+    expect(sanitizeSafeUrl('https://mlingenieria.cl/informe.pdf')).toBe('https://mlingenieria.cl/informe.pdf');
+    expect(sanitizeSafeUrl('data:application/pdf;base64,JVBERi0xLjQK')).toBe('data:application/pdf;base64,JVBERi0xLjQK');
+  });
+
+  it('escapeHtml neutraliza etiquetas y atributos maliciosos en plantillas HTML', () => {
+    const raw = '</title><script>alert("xss")</script>';
+    expect(escapeHtml(raw)).toBe('&lt;/title&gt;&lt;script&gt;alert(&quot;xss&quot;)&lt;/script&gt;');
+  });
+});
+

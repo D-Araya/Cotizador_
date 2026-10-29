@@ -29,29 +29,135 @@ export interface ApiRequestOptions extends RequestInit {
   retryDelayMs?: number;
 }
 
+import { ROLE_PERMISSIONS } from '../shared-kernel/permissions.ts';
+import { UserRole } from '../modules/types.ts';
+
+const VALID_USER_ROLES: ReadonlySet<string> = new Set(['ADMIN', 'SALES_REP', 'CUSTOMER_CONTACT']);
+
+/**
+ * Valida en tiempo de ejecución la estructura del usuario almacenado en Web Storage.
+ * Previene pantallas blancas por JSON corrupto y neutraliza escalación de privilegios
+ * recalculando los permisos exclusivamente desde la matriz canónica del rol.
+ */
+export function parseSafeApiUser(raw: unknown): ApiUser | null {
+  try {
+    const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return null;
+    }
+    const candidate = parsed as Record<string, unknown>;
+    if (
+      typeof candidate.id !== 'string' ||
+      candidate.id.trim().length === 0 ||
+      typeof candidate.name !== 'string' ||
+      candidate.name.trim().length === 0 ||
+      typeof candidate.role !== 'string' ||
+      !VALID_USER_ROLES.has(candidate.role)
+    ) {
+      return null;
+    }
+
+    const validRole = candidate.role as UserRole;
+    const canonicalPermissions = ROLE_PERMISSIONS[validRole] ? [...ROLE_PERMISSIONS[validRole]] : [];
+
+    return {
+      id: candidate.id.trim(),
+      role: validRole,
+      name: candidate.name.trim(),
+      email: typeof candidate.email === 'string' ? candidate.email.trim() : undefined,
+      customerId: typeof candidate.customerId === 'string' ? candidate.customerId.trim() : undefined,
+      phone: typeof candidate.phone === 'string' ? candidate.phone.trim() : undefined,
+      permissions: canonicalPermissions,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Sanitiza URLs dinámicas para prevenir vectores XSS basados en esquemas javascript:, vbscript: o data:text/html.
+ */
+export function sanitizeSafeUrl(rawUrl: string | undefined | null, allowSafeDataUrl = true): string {
+  if (!rawUrl || typeof rawUrl !== 'string') return '#';
+  const trimmed = rawUrl.trim();
+  if (!trimmed) return '#';
+
+  // Permitir rutas relativas internas seguras
+  if (trimmed.startsWith('/') && !trimmed.startsWith('//')) {
+    return trimmed;
+  }
+
+  // Validar data: URLs permitidas (no ejecutables) cuando aplique a adjuntos
+  if (allowSafeDataUrl && /^data:/i.test(trimmed)) {
+    const safeDataPattern = /^data:(application\/pdf|image\/(png|jpeg|jpg|webp|gif)|text\/(plain|csv)|application\/(msword|vnd\.openxmlformats-officedocument\.[a-z0-9.]+|vnd\.ms-[a-z0-9.]+|octet-stream));base64,[a-zA-Z0-9+/=]+$/i;
+    return safeDataPattern.test(trimmed) ? trimmed : '#';
+  }
+
+  if (allowSafeDataUrl && /^blob:/i.test(trimmed)) {
+    return trimmed;
+  }
+
+  try {
+    const parsed = new URL(trimmed);
+    if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+      return parsed.toString();
+    }
+    return '#';
+  } catch {
+    return '#';
+  }
+}
+
+/**
+ * Escapa caracteres HTML especiales para prevenir inyección DOM/XSS en plantillas de impresión.
+ */
+export function escapeHtml(unsafe: string | undefined | null): string {
+  if (!unsafe) return '';
+  return String(unsafe)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
 let activeApiUser: ApiUser | null = null;
 let authToken: string | null = null;
 
-// Initialize token and user from storage
+// Initialize token and user from storage with safe schema validation and fallback
 try {
   if (typeof window !== 'undefined') {
-    authToken = window.localStorage?.getItem('cotizador_token') || window.sessionStorage?.getItem('cotizador_token') || null;
+    const rawToken = window.localStorage?.getItem('cotizador_token') || window.sessionStorage?.getItem('cotizador_token');
+    authToken = typeof rawToken === 'string' && rawToken.trim().length > 0 ? rawToken.trim() : null;
+
     const storedUser = window.localStorage?.getItem('cotizador_user') || window.sessionStorage?.getItem('cotizador_user');
     if (storedUser) {
-      activeApiUser = JSON.parse(storedUser);
+      const validatedUser = parseSafeApiUser(storedUser);
+      if (validatedUser) {
+        activeApiUser = validatedUser;
+      } else {
+        // Purge corrupted or tampered state automatically
+        window.localStorage?.removeItem('cotizador_user');
+        window.sessionStorage?.removeItem('cotizador_user');
+        window.localStorage?.removeItem('cotizador_token');
+        window.sessionStorage?.removeItem('cotizador_token');
+        authToken = null;
+      }
     }
   }
 } catch {
   // Ignore storage errors in iframe/sandbox
+  activeApiUser = null;
+  authToken = null;
 }
 
 export function setAuthToken(token: string | null) {
-  authToken = token;
+  authToken = typeof token === 'string' && token.trim().length > 0 ? token.trim() : null;
   try {
     if (typeof window !== 'undefined') {
-      if (token) {
-        window.localStorage?.setItem('cotizador_token', token);
-        window.sessionStorage?.setItem('cotizador_token', token);
+      if (authToken) {
+        window.localStorage?.setItem('cotizador_token', authToken);
+        window.sessionStorage?.setItem('cotizador_token', authToken);
       } else {
         window.localStorage?.removeItem('cotizador_token');
         window.sessionStorage?.removeItem('cotizador_token');
@@ -67,11 +173,12 @@ export function getAuthToken(): string | null {
 }
 
 export function setActiveApiUser(user: ApiUser | null) {
-  activeApiUser = user;
+  const safeUser = user ? parseSafeApiUser(user) : null;
+  activeApiUser = safeUser;
   try {
     if (typeof window !== 'undefined') {
-      if (user) {
-        const str = JSON.stringify(user);
+      if (safeUser) {
+        const str = JSON.stringify(safeUser);
         window.localStorage?.setItem('cotizador_user', str);
         window.sessionStorage?.setItem('cotizador_user', str);
       } else {

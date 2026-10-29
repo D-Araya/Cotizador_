@@ -26,7 +26,7 @@ import {
 import { Quotation, CompanySettings, Customer, Contact, User } from '../../modules/types.ts';
 import { StatusBadge, ItemTypeBadge, statusLabels, getEffectiveQuotationStatus } from './CommonBadges.tsx';
 import { QuotationDocumentSkeleton } from './Skeleton.tsx';
-import { apiRequest, getActiveApiUser, notifyQuotationSync } from '../api.ts';
+import { apiRequest, getActiveApiUser, notifyQuotationSync, escapeHtml, sanitizeSafeUrl } from '../api.ts';
 import { formatMoney } from '../../shared-kernel/formatMoney.ts';
 import { downloadQuotationPdf } from '../utils/quotationPdf.ts';
 
@@ -283,13 +283,14 @@ export function PublicQuotationView({ token: propToken }: PublicViewProps) {
             .map((el) => el.outerHTML)
             .join('\n');
 
+          const safeTitle = escapeHtml(quotation?.quotationNumber || 'Cotizacion');
           frameDoc.open();
           frameDoc.write(`
             <!DOCTYPE html>
             <html lang="es">
               <head>
                 <meta charset="utf-8">
-                <title>${quotation?.quotationNumber || 'Cotizacion'} - Impresión Oficial</title>
+                <title>${safeTitle} - Impresión Oficial</title>
                 ${styles}
                 <style>
                   @page {
@@ -455,42 +456,6 @@ export function PublicQuotationView({ token: propToken }: PublicViewProps) {
             </button>
           </div>
         </div>
-
-        {/* STAFF PREVIEW BANNER */}
-        {isStaffUser && (
-          <div className="p-3.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 text-indigo-950 dark:text-indigo-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs shadow-xs">
-            <div className="flex items-center gap-2.5">
-              <ShieldCheck className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
-              <span>
-                <strong>Modo Vista Previa Interna ({activeUser?.role === 'ADMIN' ? 'Administrador' : 'Asesor Comercial'}):</strong> Está revisando la propuesta técnica en modo de consulta interna. Esta inspección técnica <strong>no activa</strong> el estado «Vista por Cliente».
-              </span>
-            </div>
-            <button
-              onClick={() => navigate('/app/quotations')}
-              className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline shrink-0 cursor-pointer"
-            >
-              Volver al Panel &rarr;
-            </button>
-          </div>
-        )}
-
-        {/* CUSTOMER PORTAL BANNER */}
-        {isCustomerUser && (
-          <div className="p-3.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 text-emerald-950 dark:text-emerald-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs shadow-xs">
-            <div className="flex items-center gap-2.5">
-              <Building2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-              <span>
-                Portal Mandante: <strong>{customer?.businessName || 'Austral Salmón & Mar SpA'}</strong>. Visualización y lectura registrada para trazabilidad comercial.
-              </span>
-            </div>
-            <button
-              onClick={() => navigate('/portal/quotations')}
-              className="text-xs font-bold text-emerald-700 dark:text-emerald-300 hover:underline shrink-0 cursor-pointer"
-            >
-              &larr; Volver al Portal de Clientes
-            </button>
-          </div>
-        )}
 
         {/* REVISION NOTICE (P1.a) */}
         {(quotation as any).hasNewerRevision && (
@@ -900,7 +865,7 @@ export function PublicQuotationView({ token: propToken }: PublicViewProps) {
                   {((quotation as any).attachments as any[]).map((att) => (
                     <a
                       key={att.id}
-                      href={att.url}
+                      href={sanitizeSafeUrl(att.url)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="flex items-center justify-between p-3 rounded-lg border border-slate-200 dark:border-slate-800 hover:border-indigo-400 dark:hover:border-indigo-600 bg-slate-50/50 dark:bg-slate-800/30 transition-colors group"

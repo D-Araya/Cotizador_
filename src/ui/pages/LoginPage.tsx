@@ -52,8 +52,8 @@ const DEMO_ACCOUNTS: DemoAccount[] = [
     email: 'smorales@mlingenieria.cl',
     password: 'admin123',
     icon: Briefcase,
-    iconColor: 'text-sky-600 dark:text-sky-400 bg-sky-50 dark:bg-sky-950/60 border-sky-200 dark:border-sky-800',
-    badgeClass: 'bg-sky-100 text-sky-700 dark:bg-sky-900/60 dark:text-sky-300 border-sky-200 dark:border-sky-700/60',
+    iconColor: 'text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 border-indigo-200 dark:border-indigo-800',
+    badgeClass: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/60 dark:text-indigo-300 border-indigo-200 dark:border-indigo-700/60',
   },
   {
     role: 'CUSTOMER_CONTACT',
@@ -63,8 +63,8 @@ const DEMO_ACCOUNTS: DemoAccount[] = [
     email: 'mbarrientos@australsalmon.cl',
     password: 'admin123',
     icon: Building2,
-    iconColor: 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 border-emerald-200 dark:border-emerald-800',
-    badgeClass: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/60 dark:text-emerald-300 border-emerald-200 dark:border-emerald-700/60',
+    iconColor: 'text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 border-indigo-200 dark:border-indigo-800',
+    badgeClass: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/60 dark:text-indigo-300 border-indigo-200 dark:border-indigo-700/60',
   },
 ];
 

@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { Quotation, QuotationAttachment } from '../../modules/types.ts';
 import { Modal } from '../components/Modal.tsx';
+import { sanitizeSafeUrl } from '../api.ts';
 
 interface AttachmentsModalProps {
   isOpen: boolean;
@@ -60,6 +61,18 @@ export function AttachmentsModal({
       setError('El archivo excede el límite máximo de 20 MB.');
       return;
     }
+    const lowerName = file.name.toLowerCase();
+    if (
+      lowerName.endsWith('.html') ||
+      lowerName.endsWith('.htm') ||
+      lowerName.endsWith('.svg') ||
+      lowerName.endsWith('.js') ||
+      file.type === 'text/html' ||
+      file.type === 'image/svg+xml'
+    ) {
+      setError('Formato de archivo no permitido por políticas de seguridad (HTML, SVG o scripts ejecutables).');
+      return;
+    }
     setError(null);
     setIsReadingFile(true);
     const reader = new FileReader();
@@ -103,7 +116,12 @@ export function AttachmentsModal({
         setError('Por favor ingresa la URL del archivo.');
         return;
       }
-      finalUrl = attUrl.trim();
+      const safeExternalUrl = sanitizeSafeUrl(attUrl.trim(), false);
+      if (safeExternalUrl === '#') {
+        setError('La URL ingresada no es válida. Solo se permiten enlaces seguros http:// o https://.');
+        return;
+      }
+      finalUrl = safeExternalUrl;
     }
 
     if (!finalName) {
@@ -199,7 +217,7 @@ export function AttachmentsModal({
                         )}
                         {isDataUrl ? (
                           <a
-                            href={att.url}
+                            href={sanitizeSafeUrl(att.url)}
                             download={att.name}
                             className="text-indigo-600 dark:text-indigo-400 hover:underline inline-flex items-center gap-1 text-[11px] font-semibold mt-0.5 cursor-pointer"
                           >
@@ -207,7 +225,7 @@ export function AttachmentsModal({
                           </a>
                         ) : (
                           <a
-                            href={att.url}
+                            href={sanitizeSafeUrl(att.url, false)}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="text-indigo-600 dark:text-indigo-400 hover:underline inline-flex items-center gap-1 text-[11px] font-mono truncate mt-0.5"

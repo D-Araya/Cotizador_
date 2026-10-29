@@ -23,11 +23,15 @@ const ThemeContext = createContext<ThemeContextType>({
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [themeMode, setThemeModeState] = useState<ThemeMode>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('cotizador_theme_mode');
-      if (saved === 'light' || saved === 'dark' || saved === 'system') {
-        return saved;
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const saved = window.localStorage.getItem('cotizador_theme_mode');
+        if (saved === 'light' || saved === 'dark' || saved === 'system') {
+          return saved;
+        }
       }
+    } catch {
+      // Ignore storage access errors in strict sandboxed iframes
     }
     return 'system';
   });
@@ -81,9 +85,15 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   }, [effectiveTheme]);
 
   const setThemeMode = (newMode: ThemeMode) => {
-    setThemeModeState(newMode);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('cotizador_theme_mode', newMode);
+    const validMode: ThemeMode =
+      newMode === 'light' || newMode === 'dark' || newMode === 'system' ? newMode : 'system';
+    setThemeModeState(validMode);
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        window.localStorage.setItem('cotizador_theme_mode', validMode);
+      }
+    } catch {
+      // Ignore storage write errors
     }
   };
 

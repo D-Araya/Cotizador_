@@ -118,7 +118,7 @@ export function PipelineKpiMetrics({
   return (
     <div className="space-y-6">
       {/* Barra Superior con botón para configurar ponderaciones */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white dark:bg-slate-800/80 p-5 rounded-xl border border-slate-200 dark:border-slate-700/80 shadow-xs">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs">
         <div>
           <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
             <span>📊</span>{' '}
@@ -136,14 +136,14 @@ export function PipelineKpiMetrics({
           {isGlobalAdmin && (
             <button
               onClick={() => setShowConfigModal(true)}
-              className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 text-xs font-semibold rounded-lg border border-slate-300 dark:border-slate-600 transition flex items-center gap-1.5 cursor-pointer"
+              className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold rounded-lg border border-slate-300 dark:border-slate-700 transition flex items-center gap-1.5 cursor-pointer"
             >
               <span>⚙️</span> Configurar Ponderaciones
             </button>
           )}
           <button
             onClick={fetchMetrics}
-            className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 dark:bg-cyan-700/80 dark:hover:bg-cyan-600 text-white text-xs font-semibold rounded-lg transition flex items-center gap-1 cursor-pointer shadow-xs"
+            className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg transition flex items-center gap-1 cursor-pointer shadow-xs"
           >
             <span>🔄</span> Refrescar
           </button>
@@ -348,7 +348,7 @@ export function PipelineKpiMetrics({
                       <td className="py-2.5 px-3 font-medium text-slate-800 dark:text-slate-200">{rep.salesRepName}</td>
                       <td className="py-2.5 px-2 text-center font-bold text-emerald-600 dark:text-emerald-400">{rep.wonCount}</td>
                       <td className="py-2.5 px-2 text-center font-bold text-rose-600 dark:text-rose-400">{rep.lostCount}</td>
-                      <td className="py-2.5 px-2 text-center font-semibold text-cyan-600 dark:text-cyan-400">{rep.closeRatePct}%</td>
+                      <td className="py-2.5 px-2 text-center font-semibold text-indigo-600 dark:text-indigo-400">{rep.closeRatePct}%</td>
                       <td className="py-2.5 px-3 text-right font-semibold text-slate-900 dark:text-slate-100 font-mono">{formatMoney(rep.wonAmount)}</td>
                     </tr>
                   ))}
@@ -361,8 +361,8 @@ export function PipelineKpiMetrics({
 
       {/* Modal para configurar probabilidades del pipeline (ADMIN) */}
       {showConfigModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl max-w-md w-full p-6 shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-xs p-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl max-w-md w-full p-6 shadow-2xl">
             <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 mb-1">
               Probabilidades por Estado (ADMIN)
             </h3>
@@ -374,7 +374,7 @@ export function PipelineKpiMetrics({
               <div>
                 <label className="flex justify-between text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                   <span>Borrador (DRAFT)</span>
-                  <span className="text-cyan-600 dark:text-cyan-400 font-mono">{probDraft}%</span>
+                  <span className="text-indigo-600 dark:text-indigo-400 font-mono">{probDraft}%</span>
                 </label>
                 <input
                   type="range"
@@ -382,14 +382,14 @@ export function PipelineKpiMetrics({
                   max="100"
                   value={probDraft}
                   onChange={(e) => setProbDraft(Number(e.target.value))}
-                  className="w-full accent-cyan-600 cursor-pointer"
+                  className="w-full accent-indigo-600 cursor-pointer"
                 />
               </div>
 
               <div>
                 <label className="flex justify-between text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                   <span>Enviada (SENT)</span>
-                  <span className="text-cyan-600 dark:text-cyan-400 font-mono">{probSent}%</span>
+                  <span className="text-indigo-600 dark:text-indigo-400 font-mono">{probSent}%</span>
                 </label>
                 <input
                   type="range"
@@ -397,14 +397,14 @@ export function PipelineKpiMetrics({
                   max="100"
                   value={probSent}
                   onChange={(e) => setProbSent(Number(e.target.value))}
-                  className="w-full accent-cyan-600 cursor-pointer"
+                  className="w-full accent-indigo-600 cursor-pointer"
                 />
               </div>
 
               <div>
                 <label className="flex justify-between text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                   <span>Vista por Cliente (VIEWED)</span>
-                  <span className="text-cyan-600 dark:text-cyan-400 font-mono">{probViewed}%</span>
+                  <span className="text-indigo-600 dark:text-indigo-400 font-mono">{probViewed}%</span>
                 </label>
                 <input
                   type="range"
@@ -412,14 +412,14 @@ export function PipelineKpiMetrics({
                   max="100"
                   value={probViewed}
                   onChange={(e) => setProbViewed(Number(e.target.value))}
-                  className="w-full accent-cyan-600 cursor-pointer"
+                  className="w-full accent-indigo-600 cursor-pointer"
                 />
               </div>
 
               <div>
                 <label className="flex justify-between text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                   <span>Ajuste Solicitado (CHANGES_REQUESTED)</span>
-                  <span className="text-cyan-600 dark:text-cyan-400 font-mono">{probChanges}%</span>
+                  <span className="text-indigo-600 dark:text-indigo-400 font-mono">{probChanges}%</span>
                 </label>
                 <input
                   type="range"
@@ -427,23 +427,23 @@ export function PipelineKpiMetrics({
                   max="100"
                   value={probChanges}
                   onChange={(e) => setProbChanges(Number(e.target.value))}
-                  className="w-full accent-cyan-600 cursor-pointer"
+                  className="w-full accent-indigo-600 cursor-pointer"
                 />
               </div>
 
-              <div className="flex justify-end gap-3 pt-3 border-t border-slate-100 dark:border-slate-700">
+              <div className="flex justify-end gap-3 pt-3 border-t border-slate-200 dark:border-slate-800">
                 <button
                   type="button"
                   onClick={() => setShowConfigModal(false)}
                   disabled={savingConfig}
-                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 text-sm font-medium rounded-lg transition cursor-pointer"
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-sm font-medium rounded-lg transition cursor-pointer"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
                   disabled={savingConfig}
-                  className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white text-sm font-medium rounded-lg transition disabled:opacity-50 cursor-pointer shadow-xs"
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition disabled:opacity-50 cursor-pointer shadow-xs"
                 >
                   {savingConfig ? 'Guardando...' : 'Guardar Configuración'}
                 </button>
