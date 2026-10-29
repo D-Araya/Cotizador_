@@ -167,6 +167,8 @@ export function ClientPortal({ user, onLogout, onOpenPublicLink, onSwitchUser }:
   const [portalAdjustmentMessage, setPortalAdjustmentMessage] = useState<string>('');
   const [portalActionLoading, setPortalActionLoading] = useState<boolean>(false);
   const [portalToast, setPortalToast] = useState<string | null>(null);
+  const [quotesPage, setQuotesPage] = useState<number>(1);
+  const QUOTES_PAGE_SIZE = 15;
 
   useEffect(() => {
     loadPortalData(false);
@@ -960,86 +962,152 @@ export function ClientPortal({ user, onLogout, onOpenPublicLink, onSwitchUser }:
             {/* ======================================================== */}
             {/* TAB: QUOTATIONS LIST                                     */}
             {/* ======================================================== */}
-            {activeTab === 'quotations' && (
-              <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs overflow-hidden">
-                <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center">
-                  <h3 className="font-bold text-slate-900 dark:text-white text-sm">{t.quotations}</h3>
-                  <span className="text-xs text-slate-500 dark:text-slate-400">{quotations.length} propuestas registradas</span>
-                </div>
+            {activeTab === 'quotations' && (() => {
+              const totalQuotePages = Math.max(1, Math.ceil(quotations.length / QUOTES_PAGE_SIZE));
+              const safeQuotesPage = Math.min(quotesPage, totalQuotePages);
+              const quoteStartIdx = (safeQuotesPage - 1) * QUOTES_PAGE_SIZE;
+              const paginatedClientQuotations = quotations.slice(quoteStartIdx, quoteStartIdx + QUOTES_PAGE_SIZE);
 
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
-                    <thead className="bg-slate-50 dark:bg-slate-800/80 text-slate-600 dark:text-slate-400 font-semibold border-b border-slate-200 dark:border-slate-800">
-                      <tr>
-                        <th className="py-3 px-4">{t.number}</th>
-                        <th className="py-3 px-3">{t.date}</th>
-                        <th className="py-3 px-3">{t.total}</th>
-                        <th className="py-3 px-3">{t.status}</th>
-                        <th className="py-3 px-4 text-right">{t.actions}</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                      {quotations.map((q) => (
-                        <tr key={q.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                          <td className="py-3 px-4 font-mono font-bold text-slate-900 dark:text-white">
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <span>{q.quotationNumber}</span>
-                              {q.revision && q.revision > 1 && (
-                                <span className="px-1.5 py-0.2 rounded text-[10px] font-semibold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
-                                  R{q.revision}
-                                </span>
-                              )}
-                              {(q as any).hasNewerRevision && (
-                                <span className="px-1.5 py-0.2 rounded text-[10px] font-medium bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
-                                  Superada
-                                </span>
-                              )}
-                            </div>
-                            {q.acceptedOffline && (
-                              <span className="block text-[10px] text-slate-500 dark:text-slate-400 font-sans font-normal mt-0.5">
-                                Registrada por personal (OC: {q.offlinePurchaseOrderNumber || 'S/N'})
-                              </span>
-                            )}
-                            {!q.acceptedOffline && (q as any).clientSignerName && (
-                              <span className="block text-[10px] text-slate-500 dark:text-slate-400 font-sans font-normal mt-0.5">
-                                Firmada por {(q as any).clientSignerName}
-                              </span>
-                            )}
-                          </td>
-                          <td className="py-3 px-3 text-slate-600 dark:text-slate-300">
-                            {new Date(q.createdAt).toLocaleDateString()}
-                          </td>
-                          <td className="py-3 px-3 font-mono font-bold text-indigo-600 dark:text-indigo-400">
-                            {formatMoney(q.grandTotal ?? q.total)}
-                          </td>
-                          <td className="py-3 px-3">
-                            <StatusBadge status={getEffectiveQuotationStatus(q)} />
-                          </td>
-                          <td className="py-3 px-4 text-right space-x-2 whitespace-nowrap">
-                            <button
-                              onClick={() => setSelectedQuoteForAdjustment(q)}
-                              className="px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-medium text-xs hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer transition-colors inline-flex items-center gap-1 shadow-2xs"
-                              title="Solicitar modificaciones o ajustes a esta cotización"
-                            >
-                              <MessageSquare className="w-3.5 h-3.5 text-indigo-500" />
-                              <span>Pedir Ajuste</span>
-                            </button>
-                            <button
-                              onClick={() => handleOpenClientQuote(q)}
-                              className="px-3 py-1.5 rounded-lg bg-indigo-600 text-white font-medium text-xs hover:bg-indigo-700 cursor-pointer transition-colors inline-flex items-center gap-1.5"
-                              title="Ver documento completo o imprimir PDF"
-                            >
-                              <Eye className="w-3.5 h-3.5" />
-                              {t.viewDetails} / PDF
-                            </button>
-                          </td>
+              return (
+                <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs overflow-hidden">
+                  <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center">
+                    <h3 className="font-bold text-slate-900 dark:text-white text-sm">{t.quotations}</h3>
+                    <span className="text-xs text-slate-500 dark:text-slate-400">
+                      Mostrando {quotations.length === 0 ? 0 : quoteStartIdx + 1}–{Math.min(quoteStartIdx + QUOTES_PAGE_SIZE, quotations.length)} de {quotations.length} propuestas registradas
+                    </span>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-slate-50 dark:bg-slate-800/80 text-slate-600 dark:text-slate-400 font-semibold border-b border-slate-200 dark:border-slate-800">
+                        <tr>
+                          <th className="py-3 px-4">{t.number}</th>
+                          <th className="py-3 px-3">{t.date}</th>
+                          <th className="py-3 px-3">{t.total}</th>
+                          <th className="py-3 px-3">{t.status}</th>
+                          <th className="py-3 px-4 text-right">{t.actions}</th>
                         </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                        {paginatedClientQuotations.map((q) => (
+                          <tr key={q.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                            <td className="py-3 px-4 font-mono font-bold text-slate-900 dark:text-white">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span>{q.quotationNumber}</span>
+                                {q.revision && q.revision > 1 && (
+                                  <span className="px-1.5 py-0.2 rounded text-[10px] font-semibold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                                    R{q.revision}
+                                  </span>
+                                )}
+                                {(q as any).hasNewerRevision && (
+                                  <span className="px-1.5 py-0.2 rounded text-[10px] font-medium bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+                                    Superada
+                                  </span>
+                                )}
+                              </div>
+                              {q.acceptedOffline && (
+                                <span className="block text-[10px] text-slate-500 dark:text-slate-400 font-sans font-normal mt-0.5">
+                                  Registrada por personal (OC: {q.offlinePurchaseOrderNumber || 'S/N'})
+                                </span>
+                              )}
+                              {!q.acceptedOffline && (q as any).clientSignerName && (
+                                <span className="block text-[10px] text-slate-500 dark:text-slate-400 font-sans font-normal mt-0.5">
+                                  Firmada por {(q as any).clientSignerName}
+                                </span>
+                              )}
+                            </td>
+                            <td className="py-3 px-3 text-slate-600 dark:text-slate-300">
+                              {new Date(q.createdAt).toLocaleDateString()}
+                            </td>
+                            <td className="py-3 px-3 font-mono font-bold text-indigo-600 dark:text-indigo-400">
+                              {formatMoney(q.grandTotal ?? q.total)}
+                            </td>
+                            <td className="py-3 px-3">
+                              <StatusBadge status={getEffectiveQuotationStatus(q)} />
+                            </td>
+                            <td className="py-3 px-4 text-right space-x-2 whitespace-nowrap">
+                              <button
+                                onClick={() => setSelectedQuoteForAdjustment(q)}
+                                className="px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-medium text-xs hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer transition-colors inline-flex items-center gap-1 shadow-2xs"
+                                title="Solicitar modificaciones o ajustes a esta cotización"
+                              >
+                                <MessageSquare className="w-3.5 h-3.5 text-indigo-500" />
+                                <span>Pedir Ajuste</span>
+                              </button>
+                              <button
+                                onClick={() => handleOpenClientQuote(q)}
+                                className="px-3 py-1.5 rounded-lg bg-indigo-600 text-white font-medium text-xs hover:bg-indigo-700 cursor-pointer transition-colors inline-flex items-center gap-1.5"
+                                title="Ver documento completo o imprimir PDF"
+                              >
+                                <Eye className="w-3.5 h-3.5" />
+                                {t.viewDetails} / PDF
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Pagination Footer (15 per page) */}
+                  <div className="p-4 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+                    <span className="text-slate-500 dark:text-slate-400">
+                      Página{' '}
+                      <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
+                        {safeQuotesPage}
+                      </span>{' '}
+                      de{' '}
+                      <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
+                        {totalQuotePages}
+                      </span>{' '}
+                      <span className="text-slate-400 dark:text-slate-500">
+                        ({QUOTES_PAGE_SIZE} por página)
+                      </span>
+                    </span>
+
+                    <div className="flex items-center gap-1" role="navigation" aria-label="Paginación de cotizaciones">
+                      <button
+                        type="button"
+                        onClick={() => setQuotesPage(Math.max(1, safeQuotesPage - 1))}
+                        disabled={safeQuotesPage <= 1}
+                        className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors inline-flex items-center gap-1"
+                        aria-label="Página anterior"
+                      >
+                        <ChevronLeft className="w-3.5 h-3.5" />
+                        <span>Anterior</span>
+                      </button>
+
+                      {Array.from({ length: totalQuotePages }, (_, idx) => idx + 1).map((pageNum) => (
+                        <button
+                          key={pageNum}
+                          type="button"
+                          onClick={() => setQuotesPage(pageNum)}
+                          aria-current={pageNum === safeQuotesPage ? 'page' : undefined}
+                          className={`min-w-[30px] h-[30px] px-2 rounded-lg font-mono font-bold text-xs transition-colors cursor-pointer ${
+                            pageNum === safeQuotesPage
+                              ? 'bg-indigo-600 text-white shadow-xs'
+                              : 'border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'
+                          }`}
+                        >
+                          {pageNum}
+                        </button>
                       ))}
-                    </tbody>
-                  </table>
+
+                      <button
+                        type="button"
+                        onClick={() => setQuotesPage(Math.min(totalQuotePages, safeQuotesPage + 1))}
+                        disabled={safeQuotesPage >= totalQuotePages}
+                        className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors inline-flex items-center gap-1"
+                        aria-label="Página siguiente"
+                      >
+                        <span>Siguiente</span>
+                        <ChevronRight className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
             {/* ======================================================== */}
             {/* TAB: CALENDAR                                            */}

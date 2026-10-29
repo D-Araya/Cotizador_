@@ -14,6 +14,8 @@ import {
   Paperclip,
   Layers,
   CheckCircle,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import {
   Quotation,
@@ -37,6 +39,8 @@ import { AttachmentsModal } from '../../modals/AttachmentsModal.tsx';
 import { useQuotations } from '../../hooks/useQuotations.ts';
 import { api, apiRequest } from '../../api.ts';
 import { InternalOutletContext } from '../../layouts/AppLayout.tsx';
+
+const PAGE_SIZE = 15;
 
 interface QuotationsPageProps {
   user?: User;
@@ -68,6 +72,7 @@ export function QuotationsPage(props: QuotationsPageProps) {
   const [subView, setSubView] = useState<'list' | 'kanban' | 'follow-up'>('list');
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
   const [isWizardOpen, setIsWizardOpen] = useState(false);
   const [showTemplatesModal, setShowTemplatesModal] = useState(false);
   const [selectedTemplateForWizard, setSelectedTemplateForWizard] = useState<QuotationTemplate | null>(null);
@@ -176,6 +181,28 @@ export function QuotationsPage(props: QuotationsPageProps) {
       q.status !== 'ACCEPTED' &&
       q.status !== 'REJECTED'
   ).length;
+
+  const filteredQuotations = quotations.filter((q) => {
+    const effectiveStatus = getEffectiveQuotationStatus(q);
+    if (statusFilter && effectiveStatus !== statusFilter) return false;
+    if (search) {
+      const term = search.toLowerCase();
+      const cust = customers.find((c) => c.id === q.customerId);
+      const customerName = (cust?.businessName || q.customerBusinessName || '').toLowerCase();
+      if (
+        !q.quotationNumber.toLowerCase().includes(term) &&
+        !customerName.includes(term)
+      ) {
+        return false;
+      }
+    }
+    return true;
+  });
+
+  const totalPages = Math.max(1, Math.ceil(filteredQuotations.length / PAGE_SIZE));
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const startIndex = (safeCurrentPage - 1) * PAGE_SIZE;
+  const paginatedQuotations = filteredQuotations.slice(startIndex, startIndex + PAGE_SIZE);
 
   return (
     <div className="space-y-4">
@@ -305,9 +332,12 @@ export function QuotationsPage(props: QuotationsPageProps) {
                 <input
                   id="quote-search-input"
                   type="text"
-                  placeholder="Buscar por N.º de cotización..."
+                  placeholder="Buscar por N.º o cliente..."
                   value={search}
-                  onChange={(e) => setSearch(e.target.value)}
+                  onChange={(e) => {
+                    setSearch(e.target.value);
+                    setCurrentPage(1);
+                  }}
                   className="w-full pl-9 pr-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-xs focus:ring-1 focus:ring-indigo-500 focus:outline-none"
                 />
               </div>
@@ -316,7 +346,10 @@ export function QuotationsPage(props: QuotationsPageProps) {
               <select
                 id="quote-status-filter"
                 value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
+                onChange={(e) => {
+                  setStatusFilter(e.target.value);
+                  setCurrentPage(1);
+                }}
                 className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 text-xs bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 focus:outline-none"
               >
                 <option value="">Todos los estados</option>
@@ -329,8 +362,16 @@ export function QuotationsPage(props: QuotationsPageProps) {
               </select>
             </div>
 
-            <span className="text-xs text-slate-400 self-end">
-              Mostrando {quotations.length} cotizaciones
+            <span className="text-xs text-slate-500 dark:text-slate-400 self-end">
+              Mostrando{' '}
+              <span className="font-mono font-bold text-slate-700 dark:text-slate-200">
+                {filteredQuotations.length === 0 ? 0 : startIndex + 1}–{Math.min(startIndex + PAGE_SIZE, filteredQuotations.length)}
+              </span>{' '}
+              de{' '}
+              <span className="font-mono font-bold text-slate-700 dark:text-slate-200">
+                {filteredQuotations.length}
+              </span>{' '}
+              cotizaciones
             </span>
           </div>
 
@@ -349,14 +390,14 @@ export function QuotationsPage(props: QuotationsPageProps) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                {quotations
-                  .filter((q) => {
-                    const effectiveStatus = getEffectiveQuotationStatus(q);
-                    if (statusFilter && effectiveStatus !== statusFilter) return false;
-                    if (search && !q.quotationNumber.toLowerCase().includes(search.toLowerCase())) return false;
-                    return true;
-                  })
-                  .map((q) => {
+                {paginatedQuotations.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="py-8 text-center text-slate-400 dark:text-slate-500">
+                      No se encontraron cotizaciones que coincidan con los filtros seleccionados.
+                    </td>
+                  </tr>
+                ) : (
+                  paginatedQuotations.map((q) => {
                     const cust = customers.find((c) => c.id === q.customerId);
                     const effectiveStatus = getEffectiveQuotationStatus(q);
                     return (
@@ -511,9 +552,67 @@ export function QuotationsPage(props: QuotationsPageProps) {
                         </td>
                       </tr>
                     );
-                  })}
+                  })
+                )}
               </tbody>
             </table>
+          </div>
+
+          {/* Pagination Controls (15 per page) */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2 border-t border-slate-100 dark:border-slate-800 text-xs">
+            <span className="text-slate-500 dark:text-slate-400">
+              Página{' '}
+              <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
+                {safeCurrentPage}
+              </span>{' '}
+              de{' '}
+              <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
+                {totalPages}
+              </span>{' '}
+              <span className="text-slate-400 dark:text-slate-500">
+                ({PAGE_SIZE} por página)
+              </span>
+            </span>
+
+            <div className="flex items-center gap-1" role="navigation" aria-label="Paginación de cotizaciones">
+              <button
+                type="button"
+                onClick={() => setCurrentPage(Math.max(1, safeCurrentPage - 1))}
+                disabled={safeCurrentPage <= 1}
+                className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors inline-flex items-center gap-1"
+                aria-label="Página anterior"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
+                <span>Anterior</span>
+              </button>
+
+              {Array.from({ length: totalPages }, (_, idx) => idx + 1).map((pageNum) => (
+                <button
+                  key={pageNum}
+                  type="button"
+                  onClick={() => setCurrentPage(pageNum)}
+                  aria-current={pageNum === safeCurrentPage ? 'page' : undefined}
+                  className={`min-w-[30px] h-[30px] px-2 rounded-lg font-mono font-bold text-xs transition-colors cursor-pointer ${
+                    pageNum === safeCurrentPage
+                      ? 'bg-indigo-600 text-white shadow-xs'
+                      : 'border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'
+                  }`}
+                >
+                  {pageNum}
+                </button>
+              ))}
+
+              <button
+                type="button"
+                onClick={() => setCurrentPage(Math.min(totalPages, safeCurrentPage + 1))}
+                disabled={safeCurrentPage >= totalPages}
+                className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors inline-flex items-center gap-1"
+                aria-label="Página siguiente"
+              >
+                <span>Siguiente</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
         </div>
       )}
