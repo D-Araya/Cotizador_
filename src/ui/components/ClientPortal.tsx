@@ -18,6 +18,7 @@ import {
   User,
   Loader2,
   AlertCircle,
+  AlertTriangle,
   ExternalLink,
   Package,
   Wrench,
@@ -28,6 +29,8 @@ import {
   Check,
   MessageSquare,
   Send,
+  Menu,
+  X,
 } from 'lucide-react';
 import { Quotation, User as UserType, Invoice, OperationOrder } from '../../modules/types.ts';
 import { StatusBadge, statusLabels, getEffectiveQuotationStatus } from './CommonBadges.tsx';
@@ -50,8 +53,8 @@ const t = {
   quotations: 'Mis Cotizaciones',
   calendar: 'Calendario Mensual',
   timeline: 'Línea de Tiempo',
-  invoices: 'Facturación y Pagos',
-  operations: 'Operaciones y Entregas',
+  invoices: 'Documentos de Cobro',
+  operations: 'Órdenes de Trabajo',
   logout: 'Cerrar Sesión',
   accepted: 'Aceptadas',
   pending: 'Pendientes de Revisión',
@@ -117,9 +120,16 @@ interface ClientPortalProps {
   onLogout: () => void;
   onOpenPublicLink: (token: string) => void;
   onSwitchUser?: (email: string) => void;
+  isDemoMode?: boolean;
 }
 
-export function ClientPortal({ user, onLogout, onOpenPublicLink, onSwitchUser }: ClientPortalProps) {
+export function ClientPortal({
+  user,
+  onLogout,
+  onOpenPublicLink,
+  onSwitchUser,
+  isDemoMode = true,
+}: ClientPortalProps) {
   const { tab } = useParams<{ tab?: string }>();
   const navigate = useNavigate();
 
@@ -129,6 +139,8 @@ export function ClientPortal({ user, onLogout, onOpenPublicLink, onSwitchUser }:
   const initialTab: PortalTab = (tab && (validTabs as readonly string[]).includes(tab)) ? (tab as PortalTab) : 'dashboard';
 
   const [activeTab, setActiveTabState] = useState<PortalTab>(initialTab);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
+  const [dashboardFilterMode, setDashboardFilterMode] = useState<'company' | 'pipeline'>('company');
 
   useEffect(() => {
     if (tab && (validTabs as readonly string[]).includes(tab)) {
@@ -138,6 +150,7 @@ export function ClientPortal({ user, onLogout, onOpenPublicLink, onSwitchUser }:
 
   const setActiveTab = (newTab: PortalTab) => {
     setActiveTabState(newTab);
+    setMobileMenuOpen(false);
     navigate(`/portal/${newTab}`);
   };
 
@@ -289,331 +302,516 @@ export function ClientPortal({ user, onLogout, onOpenPublicLink, onSwitchUser }:
     setCurrentDate(new Date(year, month + 1, 1));
   }
 
+  const clientDisplayName =
+    user?.email === 'mbarrientos@australsalmon.cl' || user?.name === 'Ing. Matías Barrientos'
+      ? 'Matías Barrientos (Gerente de Operaciones y Flota)'
+      : user?.name || 'Cliente';
+
+  const clientInitials =
+    user?.email === 'mbarrientos@australsalmon.cl' || user?.name?.includes('Matías Barrientos')
+      ? 'MB'
+      : (
+          user?.name
+            ?.replace(/^Ing\.\s*/i, '')
+            ?.trim()
+            ?.split(/\s+/)
+            .slice(0, 2)
+            .map((part) => part.charAt(0).toUpperCase())
+            .join('') || 'C'
+        );
+
   return (
-    <div className="min-h-screen md:h-screen md:overflow-hidden bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col md:flex-row transition-colors">
-      {/* SIDEBAR */}
-      <aside className="w-full md:w-64 md:h-full bg-white dark:bg-slate-900 border-b md:border-b-0 md:border-r border-slate-200 dark:border-slate-800 p-4 flex flex-col justify-between shrink-0 overflow-hidden text-slate-800 dark:text-slate-100 transition-colors">
-        <div className="flex-1 overflow-y-auto min-h-0 space-y-6">
-          {/* Brand */}
-          <div className="flex items-center gap-3 h-12 shrink-0">
-            <div className="w-9 h-9 rounded-xl bg-indigo-600 flex items-center justify-center font-extrabold text-white shadow-md shrink-0">
-              C
-            </div>
-            <div className="min-w-0">
-              <span className="font-bold text-sm tracking-tight text-slate-900 dark:text-white block truncate">
-                {t.portalTitle}
-              </span>
-              <span className="text-[11px] text-indigo-600 dark:text-indigo-400 font-medium block truncate">Autoservicio B2B</span>
-            </div>
-          </div>
+    <div className="h-screen overflow-hidden bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col transition-colors">
+      {/* Skip link for accessibility */}
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:px-4 focus:py-2 focus:bg-indigo-600 focus:text-white focus:rounded-lg focus:shadow-lg focus:outline-none"
+      >
+        Saltar al contenido principal
+      </a>
 
-          {/* Navigation */}
-          <nav className="space-y-1">
-            <button
-              onClick={() => setActiveTab('dashboard')}
-              className={`w-full h-10 min-h-[40px] max-h-[40px] flex items-center gap-3 px-3 rounded-lg text-xs font-semibold transition-colors cursor-pointer shrink-0 ${
-                activeTab === 'dashboard'
-                  ? 'bg-indigo-600 text-white shadow-xs'
-                  : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
-              }`}
-            >
-              <LayoutDashboard className={`w-4 h-4 shrink-0 ${activeTab === 'dashboard' ? 'text-white' : 'text-slate-400'}`} />
-              <span>{t.dashboard}</span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab('quotations')}
-              className={`w-full h-10 min-h-[40px] max-h-[40px] flex items-center gap-3 px-3 rounded-lg text-xs font-semibold transition-colors cursor-pointer shrink-0 ${
-                activeTab === 'quotations'
-                  ? 'bg-indigo-600 text-white shadow-xs'
-                  : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
-              }`}
-            >
-              <FileText className={`w-4 h-4 shrink-0 ${activeTab === 'quotations' ? 'text-white' : 'text-slate-400'}`} />
-              <span>{t.quotations}</span>
-              {summary.pending > 0 && (
-                <span className="ml-auto shrink-0 bg-amber-500 text-slate-950 px-1.5 py-0.2 rounded-full font-bold text-[10px]">
-                  {summary.pending}
-                </span>
-              )}
-            </button>
-
-            <button
-              onClick={() => setActiveTab('calendar')}
-              className={`w-full h-10 min-h-[40px] max-h-[40px] flex items-center gap-3 px-3 rounded-lg text-xs font-semibold transition-colors cursor-pointer shrink-0 ${
-                activeTab === 'calendar'
-                  ? 'bg-indigo-600 text-white shadow-xs'
-                  : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
-              }`}
-            >
-              <CalendarIcon className={`w-4 h-4 shrink-0 ${activeTab === 'calendar' ? 'text-white' : 'text-slate-400'}`} />
-              <span>{t.calendar}</span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab('timeline')}
-              className={`w-full h-10 min-h-[40px] max-h-[40px] flex items-center gap-3 px-3 rounded-lg text-xs font-semibold transition-colors cursor-pointer shrink-0 ${
-                activeTab === 'timeline'
-                  ? 'bg-indigo-600 text-white shadow-xs'
-                  : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
-              }`}
-            >
-              <History className={`w-4 h-4 shrink-0 ${activeTab === 'timeline' ? 'text-white' : 'text-slate-400'}`} />
-              <span>{t.timeline}</span>
-            </button>
-
-            {/* Invoices tab (ENABLED) */}
-            <button
-              onClick={() => setActiveTab('invoices')}
-              className={`w-full h-10 min-h-[40px] max-h-[40px] flex items-center gap-3 px-3 rounded-lg text-xs font-semibold transition-colors cursor-pointer shrink-0 ${
-                activeTab === 'invoices'
-                  ? 'bg-indigo-600 text-white shadow-xs'
-                  : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
-              }`}
-            >
-              <Receipt className={`w-4 h-4 shrink-0 ${activeTab === 'invoices' ? 'text-white' : 'text-slate-400'}`} />
-              <span>{t.invoices}</span>
-              <span className={`ml-auto shrink-0 px-1.5 py-0.2 rounded-full font-mono text-[10px] ${
-                activeTab === 'invoices'
-                  ? 'bg-indigo-700 text-white'
-                  : 'bg-indigo-50 dark:bg-slate-800 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-900/50'
-              }`}>
-                {invoices.length}
-              </span>
-            </button>
-
-            {/* Operations tab (ENABLED) */}
-            <button
-              onClick={() => setActiveTab('operations')}
-              className={`w-full h-10 min-h-[40px] max-h-[40px] flex items-center gap-3 px-3 rounded-lg text-xs font-semibold transition-colors cursor-pointer shrink-0 ${
-                activeTab === 'operations'
-                  ? 'bg-indigo-600 text-white shadow-xs'
-                  : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
-              }`}
-            >
-              <Truck className={`w-4 h-4 shrink-0 ${activeTab === 'operations' ? 'text-white' : 'text-slate-400'}`} />
-              <span>{t.operations}</span>
-              <span className={`ml-auto shrink-0 px-1.5 py-0.2 rounded-full font-mono text-[10px] ${
-                activeTab === 'operations'
-                  ? 'bg-indigo-700 text-white'
-                  : 'bg-indigo-50 dark:bg-slate-800 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-900/50'
-              }`}>
-                {operations.length}
-              </span>
-            </button>
-          </nav>
+      {/* Demo mode banner */}
+      {isDemoMode && (
+        <div
+          className="bg-amber-500/15 border-b border-amber-500/30 text-amber-800 dark:text-amber-200 px-4 py-1.5 text-xs font-semibold flex items-center justify-center gap-2 text-center shrink-0"
+          role="status"
+        >
+          <AlertTriangle className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+          <span>Modo demostración: los datos no se guardan</span>
         </div>
+      )}
 
-        {/* Botones inferiores compartidos entre los tres portales */}
-        <SidebarBottomActions onLogout={onLogout} />
-      </aside>
+      {/* Top Navbar (Idéntico a los paneles internos Admin y Asesor) */}
+      <header className="shrink-0 z-40 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 shadow-2xs">
+        <div className="px-4 py-2.5 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            {/* Mobile menu toggle button */}
+            <button
+              type="button"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              aria-label={mobileMenuOpen ? 'Cerrar menú de navegación' : 'Abrir menú de navegación'}
+              aria-expanded={mobileMenuOpen}
+              aria-controls="app-sidebar"
+              className="md:hidden p-2 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            >
+              {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            </button>
 
-      {/* MAIN VIEW */}
-      <main className="flex-1 p-6 md:p-8 overflow-y-auto min-w-0 min-h-0">
-        {/* HEADER */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-6 border-b border-slate-200 dark:border-slate-800">
-          <div>
-            <h1 className="text-xl font-bold text-slate-900 dark:text-white capitalize">
-              {activeTab === 'dashboard' && t.dashboard}
-              {activeTab === 'quotations' && t.quotations}
-              {activeTab === 'calendar' && t.calendar}
-              {activeTab === 'timeline' && t.timeline}
-              {activeTab === 'invoices' && t.invoicesTitle}
-              {activeTab === 'operations' && t.operationsTitle}
-            </h1>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              {t.welcomeBack}, <span className="text-indigo-600 dark:text-indigo-400 font-semibold">{user.name}</span>.
-            </p>
+            <div className="flex items-center gap-2">
+              <span className="font-extrabold text-slate-900 dark:text-white text-base tracking-tight">
+                ML Ingeniería SpA
+              </span>
+              <span className="hidden sm:inline-block text-[11px] font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
+                Sistema de Cotización
+              </span>
+            </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2.5">
-            <span className="text-xs px-3 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 font-mono">
-              Austral Salmón &amp; Mar SpA
-            </span>
+          <div className="flex items-center gap-2.5">
+            {/* User role info badge */}
+            <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-xs text-left">
+              <div className="w-6 h-6 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-[10px] shrink-0">
+                {clientInitials}
+              </div>
+              <div className="hidden sm:block">
+                <span className="font-bold block leading-tight text-slate-800 dark:text-slate-200">
+                  {clientDisplayName}
+                </span>
+                <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">
+                  Cliente
+                </span>
+              </div>
+            </div>
 
-            {/* Selector Rápido para Alternar entre Portales */}
+            {/* Quick Role / Portal Switcher */}
             {onSwitchUser && (
-              <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-lg border border-slate-200 dark:border-slate-700 text-xs">
-                <span className="text-[10px] uppercase font-bold text-slate-500 px-1 hidden md:inline">Ver como:</span>
+              <div className="hidden sm:flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-lg border border-slate-200 dark:border-slate-700 text-xs">
+                <span className="text-[10px] uppercase font-bold text-slate-500 px-1 hidden md:inline">Portal:</span>
                 <button
+                  type="button"
                   onClick={() => onSwitchUser('admin@mlingenieria.cl')}
-                  className="px-2 py-0.5 rounded bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-medium hover:text-indigo-600 shadow-xs cursor-pointer text-[11px]"
-                  title="Cambiar a Portal Admin (Victoria Villegas)"
+                  className="px-2 py-0.5 rounded bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:text-indigo-600 font-medium text-[11px] cursor-pointer transition-colors"
+                  title="Cambiar a Administrador (Victoria Villegas)"
                 >
                   Admin
                 </button>
                 <button
+                  type="button"
                   onClick={() => onSwitchUser('smorales@mlingenieria.cl')}
-                  className="px-2 py-0.5 rounded bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-medium hover:text-indigo-600 shadow-xs cursor-pointer text-[11px]"
-                  title="Cambiar a Portal Asesor (Sebastián Morales)"
+                  className="px-2 py-0.5 rounded bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:text-indigo-600 font-medium text-[11px] cursor-pointer transition-colors"
+                  title="Cambiar a Asesor Comercial (Sebastián Morales)"
                 >
                   Asesor
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onSwitchUser('mbarrientos@australsalmon.cl')}
+                  className="px-2 py-0.5 rounded bg-indigo-600 text-white shadow-xs font-bold text-[11px] cursor-pointer transition-colors"
+                  title="Portal Cliente (Matías Barrientos)"
+                >
+                  Cliente
                 </button>
               </div>
             )}
           </div>
         </div>
+      </header>
 
-        {/* Portal Toast Banner */}
-        {portalToast && (
-          <div className="mt-4 p-3.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-200 dark:border-indigo-700/60 text-indigo-800 dark:text-indigo-200 text-xs font-semibold flex items-center justify-between shadow-xs animate-in fade-in duration-200">
-            <div className="flex items-center gap-2">
-              <Check className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
-              <span>{portalToast}</span>
+      {/* Layout Body: Sidebar + Main Content */}
+      <div className="flex-1 flex min-h-0 overflow-hidden">
+        {/* SIDEBAR ESTANDARIZADO */}
+        <aside
+          id="app-sidebar"
+          aria-label="Menú principal de navegación"
+          className={`
+            fixed md:static inset-y-0 left-0 z-30
+            w-64 md:w-60 md:h-full bg-white dark:bg-slate-900
+            border-r border-slate-200 dark:border-slate-800
+            flex flex-col justify-between p-4 overflow-hidden shrink-0 transition-transform duration-200 ease-in-out
+            md:translate-x-0
+            ${mobileMenuOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'}
+          `}
+        >
+          <div className="flex-1 overflow-y-auto min-h-0 space-y-1">
+            <div className="md:hidden flex items-center justify-between pb-3 mb-2 border-b border-slate-200 dark:border-slate-800">
+              <span className="font-bold text-xs uppercase tracking-wider text-slate-400">Navegación</span>
+              <button
+                type="button"
+                onClick={() => setMobileMenuOpen(false)}
+                aria-label="Cerrar menú"
+                className="p-1 rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
-            <button
-              onClick={() => setPortalToast(null)}
-              className="text-indigo-700 dark:text-indigo-300 hover:text-indigo-900 dark:hover:text-white cursor-pointer text-xs font-bold px-2 py-0.5"
-            >
-              ✕
-            </button>
+
+            {/* Navigation */}
+            <nav className="space-y-1">
+              <button
+                onClick={() => setActiveTab('dashboard')}
+                className={`w-full h-10 min-h-[40px] max-h-[40px] flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer shrink-0 ${
+                  activeTab === 'dashboard'
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                }`}
+              >
+                <LayoutDashboard className={`w-4 h-4 shrink-0 ${activeTab === 'dashboard' ? 'text-white' : 'text-slate-400'}`} />
+                <span>{t.dashboard}</span>
+              </button>
+
+              <button
+                onClick={() => setActiveTab('quotations')}
+                className={`w-full h-10 min-h-[40px] max-h-[40px] flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer shrink-0 ${
+                  activeTab === 'quotations'
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                }`}
+              >
+                <FileText className={`w-4 h-4 shrink-0 ${activeTab === 'quotations' ? 'text-white' : 'text-slate-400'}`} />
+                <span>{t.quotations}</span>
+                {summary.pending > 0 && (
+                  <span className="ml-auto shrink-0 bg-amber-500 text-slate-950 px-1.5 py-0.2 rounded-full font-bold text-[10px]">
+                    {summary.pending}
+                  </span>
+                )}
+              </button>
+
+              <button
+                onClick={() => setActiveTab('calendar')}
+                className={`w-full h-10 min-h-[40px] max-h-[40px] flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer shrink-0 ${
+                  activeTab === 'calendar'
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                }`}
+              >
+                <CalendarIcon className={`w-4 h-4 shrink-0 ${activeTab === 'calendar' ? 'text-white' : 'text-slate-400'}`} />
+                <span>{t.calendar}</span>
+              </button>
+
+              <button
+                onClick={() => setActiveTab('timeline')}
+                className={`w-full h-10 min-h-[40px] max-h-[40px] flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer shrink-0 ${
+                  activeTab === 'timeline'
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                }`}
+              >
+                <History className={`w-4 h-4 shrink-0 ${activeTab === 'timeline' ? 'text-white' : 'text-slate-400'}`} />
+                <span>{t.timeline}</span>
+              </button>
+
+              {/* Documentos de Cobro (antes Facturación y Pagos) */}
+              <button
+                onClick={() => setActiveTab('invoices')}
+                className={`w-full h-10 min-h-[40px] max-h-[40px] flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer shrink-0 ${
+                  activeTab === 'invoices'
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                }`}
+              >
+                <Receipt className={`w-4 h-4 shrink-0 ${activeTab === 'invoices' ? 'text-white' : 'text-slate-400'}`} />
+                <span>{t.invoices}</span>
+                <span
+                  className={`ml-auto shrink-0 px-1.5 py-0.2 rounded-full font-mono text-[10px] ${
+                    activeTab === 'invoices'
+                      ? 'bg-indigo-700 text-white'
+                      : 'bg-indigo-50 dark:bg-slate-800 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-900/50'
+                  }`}
+                >
+                  {invoices.length}
+                </span>
+              </button>
+
+              {/* Órdenes de Trabajo (antes Operaciones y Entregas) */}
+              <button
+                onClick={() => setActiveTab('operations')}
+                className={`w-full h-10 min-h-[40px] max-h-[40px] flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer shrink-0 ${
+                  activeTab === 'operations'
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                }`}
+              >
+                <Truck className={`w-4 h-4 shrink-0 ${activeTab === 'operations' ? 'text-white' : 'text-slate-400'}`} />
+                <span>{t.operations}</span>
+                <span
+                  className={`ml-auto shrink-0 px-1.5 py-0.2 rounded-full font-mono text-[10px] ${
+                    activeTab === 'operations'
+                      ? 'bg-indigo-700 text-white'
+                      : 'bg-indigo-50 dark:bg-slate-800 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-900/50'
+                  }`}
+                >
+                  {operations.length}
+                </span>
+              </button>
+            </nav>
           </div>
+
+          {/* Botones inferiores compartidos entre los tres portales */}
+          <SidebarBottomActions onLogout={onLogout} />
+        </aside>
+
+        {/* Mobile backdrop */}
+        {mobileMenuOpen && (
+          <div
+            className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-20 md:hidden"
+            onClick={() => setMobileMenuOpen(false)}
+            aria-hidden="true"
+          />
         )}
 
-        {/* SKELETON LOADING STATE */}
-        {loading ? (
-          <div className="mt-6 space-y-6">
-            {activeTab === 'dashboard' && (
-              <div className="space-y-6">
-                <KpiGridSkeleton count={3} />
-                <TableSkeleton rows={4} cols={5} />
+        {/* MAIN VIEW */}
+        <main
+          id="main-content"
+          tabIndex={-1}
+          className="flex-1 p-4 md:p-6 overflow-y-auto min-w-0 min-h-0 focus:outline-none space-y-6"
+        >
+          {/* Header & Scope Banner + Filter Toggles (Simétrico con Admin y Asesor) */}
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2.5 flex-wrap">
+                <h1 className="text-base font-extrabold text-slate-900 dark:text-white tracking-tight">
+                  {activeTab === 'dashboard' && 'Panel General — Resumen de Mi Empresa'}
+                  {activeTab === 'quotations' && t.quotations}
+                  {activeTab === 'calendar' && t.calendar}
+                  {activeTab === 'timeline' && t.timeline}
+                  {activeTab === 'invoices' && t.invoicesTitle}
+                  {activeTab === 'operations' && t.operationsTitle}
+                </h1>
+                <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-md border bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800/60">
+                  Austral Salmón &amp; Mar SpA
+                </span>
               </div>
-            )}
-            {activeTab === 'quotations' && <TableSkeleton rows={6} cols={5} />}
-            {activeTab === 'calendar' && <CalendarSkeleton />}
-            {activeTab === 'timeline' && <TimelineSkeleton />}
-            {activeTab === 'invoices' && <InvoicesGridSkeleton />}
-            {activeTab === 'operations' && <OperationsGridSkeleton />}
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Visualizando únicamente el resumen de su empresa y el estado de sus requerimientos.
+              </p>
+            </div>
+
+            {/* Toggles de filtro / vista a la derecha en simetría con Admin/Asesor */}
+            <div className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-800 rounded-lg w-fit shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  setDashboardFilterMode('company');
+                  if (activeTab !== 'dashboard') setActiveTab('dashboard');
+                }}
+                className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer ${
+                  dashboardFilterMode === 'company'
+                    ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                🏢 Mi Empresa
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setDashboardFilterMode('pipeline');
+                  if (activeTab !== 'dashboard') setActiveTab('dashboard');
+                }}
+                className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer ${
+                  dashboardFilterMode === 'pipeline'
+                    ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                📉 Historial del Pipeline
+              </button>
+            </div>
           </div>
-        ) : (
-          <div className="mt-6 space-y-6">
-            {/* ======================================================== */}
-            {/* TAB: DASHBOARD                                          */}
-            {/* ======================================================== */}
-            {activeTab === 'dashboard' && (
-              <div className="space-y-6">
-                {/* KPI Cards */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div className="p-5 rounded-2xl bg-white dark:bg-slate-950 border border-emerald-500/30 relative overflow-hidden shadow-xs">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">
-                        {t.accepted}
-                      </span>
-                      <CheckCircle2 className="w-5 h-5 text-emerald-500" />
-                    </div>
-                    <p className="text-3xl font-extrabold text-slate-900 dark:text-white mt-2 font-mono">{summary.accepted}</p>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">Cotizaciones aprobadas y conformes</p>
-                  </div>
 
-                  <div className="p-5 rounded-2xl bg-white dark:bg-slate-950 border border-amber-500/30 relative overflow-hidden shadow-xs">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider">
-                        {t.pending}
-                      </span>
-                      <Clock className="w-5 h-5 text-amber-500" />
-                    </div>
-                    <p className="text-3xl font-extrabold text-slate-900 dark:text-white mt-2 font-mono">{summary.pending}</p>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">Requieren su revisión o decisión</p>
-                  </div>
+          {/* Portal Toast Banner */}
+          {portalToast && (
+            <div className="p-3.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-200 dark:border-indigo-700/60 text-indigo-800 dark:text-indigo-200 text-xs font-semibold flex items-center justify-between shadow-xs animate-in fade-in duration-200">
+              <div className="flex items-center gap-2">
+                <Check className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
+                <span>{portalToast}</span>
+              </div>
+              <button
+                onClick={() => setPortalToast(null)}
+                className="text-indigo-700 dark:text-indigo-300 hover:text-indigo-900 dark:hover:text-white cursor-pointer text-xs font-bold px-2 py-0.5"
+              >
+                ✕
+              </button>
+            </div>
+          )}
 
-                  <div className="p-5 rounded-2xl bg-white dark:bg-slate-950 border border-rose-500/30 relative overflow-hidden shadow-xs">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-rose-600 dark:text-rose-400 uppercase tracking-wider">
-                        {t.rejected}
-                      </span>
-                      <XCircle className="w-5 h-5 text-rose-500" />
-                    </div>
-                    <p className="text-3xl font-extrabold text-slate-900 dark:text-white mt-2 font-mono">{summary.rejected}</p>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">Desestimadas o postergadas</p>
-                  </div>
+          {/* SKELETON LOADING STATE */}
+          {loading ? (
+            <div className="space-y-6">
+              {activeTab === 'dashboard' && (
+                <div className="space-y-6">
+                  <KpiGridSkeleton count={3} />
+                  <TableSkeleton rows={4} cols={5} />
                 </div>
+              )}
+              {activeTab === 'quotations' && <TableSkeleton rows={6} cols={5} />}
+              {activeTab === 'calendar' && <CalendarSkeleton />}
+              {activeTab === 'timeline' && <TimelineSkeleton />}
+              {activeTab === 'invoices' && <InvoicesGridSkeleton />}
+              {activeTab === 'operations' && <OperationsGridSkeleton />}
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {/* ======================================================== */}
+              {/* TAB: DASHBOARD                                          */}
+              {/* ======================================================== */}
+              {activeTab === 'dashboard' && (
+                <div className="space-y-6">
+                  {/* KPI Cards (Idénticas en estilo de borde, sombra e icono a Admin/Asesor) */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full">
+                    <div className="p-5 rounded-2xl bg-white dark:bg-slate-950 border border-emerald-500/40 dark:border-emerald-500/30 relative overflow-hidden shadow-xs">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">
+                          {t.accepted}
+                        </span>
+                        <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />
+                      </div>
+                      <p className="text-3xl font-extrabold text-slate-900 dark:text-white mt-2 font-mono">{summary.accepted}</p>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">Cotizaciones aprobadas y conformes</p>
+                    </div>
 
-                {/* Quick overview of Invoices & Operations */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs space-y-2">
+                    <div className="p-5 rounded-2xl bg-white dark:bg-slate-950 border border-amber-500/40 dark:border-amber-500/30 relative overflow-hidden shadow-xs">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider">
+                          {t.pending}
+                        </span>
+                        <Clock className="w-5 h-5 text-amber-500 shrink-0" />
+                      </div>
+                      <p className="text-3xl font-extrabold text-slate-900 dark:text-white mt-2 font-mono">{summary.pending}</p>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">Requieren su revisión o decisión</p>
+                    </div>
+
+                    <div className="p-5 rounded-2xl bg-white dark:bg-slate-950 border border-rose-500/40 dark:border-rose-500/30 relative overflow-hidden shadow-xs">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-rose-600 dark:text-rose-400 uppercase tracking-wider">
+                          {t.rejected}
+                        </span>
+                        <XCircle className="w-5 h-5 text-rose-500 shrink-0" />
+                      </div>
+                      <p className="text-3xl font-extrabold text-slate-900 dark:text-white mt-2 font-mono">{summary.rejected}</p>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">Desestimadas o postergadas</p>
+                    </div>
+                  </div>
+
+                  {/* Quick overview of Invoices & Operations */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5 shadow-xs space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                          <Receipt className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                          {t.invoices}
+                        </span>
+                        <button
+                          onClick={() => setActiveTab('invoices')}
+                          className="text-xs text-indigo-600 dark:text-indigo-400 font-semibold hover:underline cursor-pointer"
+                        >
+                          Ver todas &rarr;
+                        </button>
+                      </div>
+                      <p className="text-xs text-slate-600 dark:text-slate-400">
+                        Saldo pendiente de pago:{' '}
+                        <strong className="text-amber-600 dark:text-amber-400 font-mono">{formatMoney(totalDue)}</strong>
+                      </p>
+                    </div>
+
+                    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5 shadow-xs space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                          <Truck className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                          {t.operations}
+                        </span>
+                        <button
+                          onClick={() => setActiveTab('operations')}
+                          className="text-xs text-indigo-600 dark:text-indigo-400 font-semibold hover:underline cursor-pointer"
+                        >
+                          Ver seguimiento &rarr;
+                        </button>
+                      </div>
+                      <p className="text-xs text-slate-600 dark:text-slate-400">
+                        Órdenes activas en curso:{' '}
+                        <strong className="text-indigo-600 dark:text-indigo-400 font-mono">
+                          {operations.filter((o) => o.status !== 'COMPLETED').length} en proceso
+                        </strong>
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Historial del Pipeline (cuando el toggle Historial del Pipeline está activo) */}
+                  {dashboardFilterMode === 'pipeline' && timeline.length > 0 && (
+                    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5 space-y-4 shadow-xs">
+                      <div className="flex items-center justify-between">
+                        <h3 className="font-bold text-slate-900 dark:text-white text-sm">
+                          Historial del Pipeline de Mi Empresa
+                        </h3>
+                        <button
+                          onClick={() => setActiveTab('timeline')}
+                          className="text-xs text-indigo-600 dark:text-indigo-400 font-semibold hover:underline cursor-pointer"
+                        >
+                          Ver línea de tiempo completa &rarr;
+                        </button>
+                      </div>
+                      <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                        {timeline.slice(0, 5).map((entry, idx) => (
+                          <div key={idx} className="py-2.5 flex items-center justify-between gap-4 text-xs">
+                            <div className="flex items-center gap-2.5 flex-wrap">
+                              <span className="font-mono font-bold text-slate-900 dark:text-white">
+                                {entry.quotationNumber}
+                              </span>
+                              <StatusBadge status={entry.status} />
+                              <span className="text-slate-600 dark:text-slate-300">{entry.comment}</span>
+                            </div>
+                            <span className="text-[11px] font-mono text-slate-500 dark:text-slate-400 shrink-0">
+                              {entry.timestamp ? new Date(entry.timestamp).toLocaleDateString() : ''}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Recent Quotes */}
+                  <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5 space-y-4 shadow-xs">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-2">
-                        <Receipt className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-                        {t.invoices}
-                      </span>
+                      <h3 className="font-bold text-slate-900 dark:text-white text-sm">Cotizaciones Recientes</h3>
                       <button
-                        onClick={() => setActiveTab('invoices')}
-                        className="text-[11px] text-indigo-600 dark:text-indigo-400 font-semibold hover:underline cursor-pointer"
+                        onClick={() => setActiveTab('quotations')}
+                        className="text-xs text-indigo-600 dark:text-indigo-400 font-semibold hover:underline cursor-pointer"
                       >
                         Ver todas &rarr;
                       </button>
                     </div>
-                    <p className="text-xs text-slate-600 dark:text-slate-400">
-                      Saldo pendiente de pago:{' '}
-                      <strong className="text-amber-600 dark:text-amber-400 font-mono">{formatMoney(totalDue)}</strong>
-                    </p>
-                  </div>
 
-                  <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-2">
-                        <Truck className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-                        {t.operations}
-                      </span>
-                      <button
-                        onClick={() => setActiveTab('operations')}
-                        className="text-[11px] text-indigo-600 dark:text-indigo-400 font-semibold hover:underline cursor-pointer"
-                      >
-                        Ver seguimiento &rarr;
-                      </button>
-                    </div>
-                    <p className="text-xs text-slate-600 dark:text-slate-400">
-                      Órdenes activas en curso:{' '}
-                      <strong className="text-indigo-600 dark:text-indigo-400 font-mono">
-                        {operations.filter((o) => o.status !== 'COMPLETED').length} en proceso
-                      </strong>
-                    </p>
-                  </div>
-                </div>
-
-                {/* Recent Quotes */}
-                <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 space-y-4 shadow-xs">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-bold text-slate-900 dark:text-white text-sm">Cotizaciones Recientes</h3>
-                    <button
-                      onClick={() => setActiveTab('quotations')}
-                      className="text-xs text-indigo-600 dark:text-indigo-400 font-semibold hover:underline cursor-pointer"
-                    >
-                      Ver todas &rarr;
-                    </button>
-                  </div>
-
-                  <div className="divide-y divide-slate-100 dark:divide-slate-800">
-                    {quotations.slice(0, 5).map((q) => (
-                      <div
-                        key={q.id}
-                        className="py-3 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800/50 px-2 rounded-lg transition-colors"
-                      >
-                        <div className="space-y-0.5">
-                          <div className="flex items-center gap-2">
-                            <span className="font-mono font-bold text-slate-900 dark:text-white text-xs">
-                              {q.quotationNumber}
-                            </span>
-                            <StatusBadge status={q.status} />
-                          </div>
-                          <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                            Fecha: {new Date(q.createdAt).toLocaleDateString()} | Total: {formatMoney(q.grandTotal)}
-                          </p>
-                        </div>
-
-                        <button
-                          onClick={() => handleOpenClientQuote(q)}
-                          className="px-3 py-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-600 hover:text-white transition-colors text-xs font-medium cursor-pointer flex items-center gap-1.5"
+                    <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                      {quotations.slice(0, 5).map((q) => (
+                        <div
+                          key={q.id}
+                          className="py-3 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800/50 px-2 rounded-lg transition-colors"
                         >
-                          <ExternalLink className="w-3.5 h-3.5" />
-                          {t.viewDetails}
-                        </button>
-                      </div>
-                    ))}
+                          <div className="space-y-0.5">
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono font-bold text-slate-900 dark:text-white text-xs">
+                                {q.quotationNumber}
+                              </span>
+                              <StatusBadge status={getEffectiveQuotationStatus(q)} />
+                            </div>
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                              Fecha: {new Date(q.createdAt).toLocaleDateString()} | Total: {formatMoney(q.grandTotal)}
+                            </p>
+                          </div>
+
+                          <button
+                            onClick={() => handleOpenClientQuote(q)}
+                            className="px-3 py-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-600 hover:text-white transition-colors text-xs font-medium cursor-pointer flex items-center gap-1.5"
+                          >
+                            <ExternalLink className="w-3.5 h-3.5" />
+                            {t.viewDetails}
+                          </button>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
+              )}
 
             {/* ======================================================== */}
             {/* TAB: FACTURAS / INVOICES (ENABLED)                     */}
@@ -1202,7 +1400,8 @@ export function ClientPortal({ user, onLogout, onOpenPublicLink, onSwitchUser }:
             )}
           </div>
         )}
-      </main>
+        </main>
+      </div>
 
       {/* MODAL: VIEW INVOICE */}
       {selectedInvoice && (

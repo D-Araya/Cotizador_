@@ -297,6 +297,7 @@ function AppRoutes() {
                   onLogout={handleLogout}
                   onOpenPublicLink={(tok) => navigate(`/q/${tok}`)}
                   onSwitchUser={handleSwitchUser}
+                  isDemoMode={isDemoMode}
                 />
               </ProtectedRoute>
             )
@@ -314,6 +315,7 @@ function AppRoutes() {
                   onLogout={handleLogout}
                   onOpenPublicLink={(tok) => navigate(`/q/${tok}`)}
                   onSwitchUser={handleSwitchUser}
+                  isDemoMode={isDemoMode}
                 />
               </ProtectedRoute>
             )
