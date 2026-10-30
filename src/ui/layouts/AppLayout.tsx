@@ -301,16 +301,18 @@ export function AppLayout({
               );
             })}
 
-            {/* Botón destacado "Chat IA" al final tras Bandeja Outbox (sin funcionalidad) */}
-            <div className="pt-2 mt-2 border-t border-slate-200 dark:border-slate-800">
-              <button
-                type="button"
-                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-bold text-white bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 hover:from-indigo-500 hover:via-purple-500 hover:to-pink-500 shadow-md shadow-indigo-500/25 border border-purple-400/30 transition-all cursor-pointer"
-              >
-                <Sparkles className="w-4 h-4 text-amber-300 shrink-0" />
-                <span>Chat IA</span>
-              </button>
-            </div>
+            {/* Botón destacado "Chat IA" exclusivo del Portal Administrador */}
+            {user.role === 'ADMIN' && (
+              <div className="pt-2 mt-2 border-t border-slate-200 dark:border-slate-800">
+                <button
+                  type="button"
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-bold text-white bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 hover:from-indigo-500 hover:via-purple-500 hover:to-pink-500 shadow-md shadow-indigo-500/25 border border-purple-400/30 transition-all cursor-pointer"
+                >
+                  <Sparkles className="w-4 h-4 text-amber-300 shrink-0" />
+                  <span>Chat IA</span>
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Botones inferiores compartidos entre los tres portales */}

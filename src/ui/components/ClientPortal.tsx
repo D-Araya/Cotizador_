@@ -587,36 +587,32 @@ export function ClientPortal({
             </div>
 
             {/* Toggles de filtro / vista a la derecha en simetría con Admin/Asesor */}
-            <div className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-800 rounded-lg w-fit shrink-0">
-              <button
-                type="button"
-                onClick={() => {
-                  setDashboardFilterMode('company');
-                  if (activeTab !== 'dashboard') setActiveTab('dashboard');
-                }}
-                className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer ${
-                  dashboardFilterMode === 'company'
-                    ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                }`}
-              >
-                🏢 Mi Empresa
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setDashboardFilterMode('pipeline');
-                  if (activeTab !== 'dashboard') setActiveTab('dashboard');
-                }}
-                className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer ${
-                  dashboardFilterMode === 'pipeline'
-                    ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                }`}
-              >
-                📉 Historial del Pipeline
-              </button>
-            </div>
+            {activeTab === 'dashboard' && (
+              <div className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-800 rounded-lg w-fit shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setDashboardFilterMode('company')}
+                  className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer ${
+                    dashboardFilterMode === 'company'
+                      ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  🏢 Mi Empresa
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDashboardFilterMode('pipeline')}
+                  className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer ${
+                    dashboardFilterMode === 'pipeline'
+                      ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  📉 Historial del Pipeline
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Portal Toast Banner */}
