@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { Package, Wrench } from 'lucide-react';
+import { Package, Wrench, ChevronLeft, ChevronRight } from 'lucide-react';
 import { OperationOrder, User } from '../../../modules/types.ts';
 import { OperationsGridSkeleton } from '../../components/Skeleton.tsx';
 import { OperationsMilestonesModal } from '../../components/OperationsMilestonesModal.tsx';
 import { useOperations } from '../../hooks/useOperations.ts';
 import { InternalOutletContext } from '../../layouts/AppLayout.tsx';
+
+const PAGE_SIZE = 16;
 
 interface OperationsPageProps {
   user?: User;
@@ -15,6 +17,7 @@ export function OperationsPage(props: OperationsPageProps) {
   const context = (useOutletContext<InternalOutletContext>() || {}) as Partial<InternalOutletContext>;
   const user = props.user || context.user;
   const { operations, loading, error, refreshOperations, updateOperationInList } = useOperations();
+  const [currentPage, setCurrentPage] = useState(1);
   const [selectedOpForMilestones, setSelectedOpForMilestones] = useState<OperationOrder | null>(null);
 
   if (!user || (loading && operations.length === 0)) {
@@ -24,6 +27,11 @@ export function OperationsPage(props: OperationsPageProps) {
   const completedCount = operations.filter((o) => o.status === 'COMPLETED').length;
   const productsCount = operations.filter((o) => o.type === 'PRODUCT_DELIVERY').length;
   const servicesCount = operations.filter((o) => o.type === 'SERVICE_EXECUTION').length;
+
+  const totalPages = Math.max(1, Math.ceil(operations.length / PAGE_SIZE));
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const startIndex = (safeCurrentPage - 1) * PAGE_SIZE;
+  const paginatedOperations = operations.slice(startIndex, startIndex + PAGE_SIZE);
 
   return (
     <div className="space-y-6">
@@ -76,6 +84,29 @@ export function OperationsPage(props: OperationsPageProps) {
         </div>
       </div>
 
+      {/* Header & Counter */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        <div>
+          <h3 className="font-bold text-slate-900 dark:text-white text-sm">
+            Listado de Órdenes Operativas y Entregables
+          </h3>
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            Seguimiento de despachos físicos, servicios técnicos e hitos de ejecución
+          </p>
+        </div>
+        <span className="text-xs text-slate-500 dark:text-slate-400 shrink-0 self-end sm:self-auto">
+          Mostrando{' '}
+          <span className="font-mono font-bold text-slate-700 dark:text-slate-200">
+            {operations.length === 0 ? 0 : startIndex + 1}–{Math.min(startIndex + PAGE_SIZE, operations.length)}
+          </span>{' '}
+          de{' '}
+          <span className="font-mono font-bold text-slate-700 dark:text-slate-200">
+            {operations.length}
+          </span>{' '}
+          órdenes
+        </span>
+      </div>
+
       {/* Orders Cards Grid */}
       {operations.length === 0 ? (
         <div className="p-8 text-center text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 text-xs">
@@ -83,7 +114,7 @@ export function OperationsPage(props: OperationsPageProps) {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {operations.map((op) => (
+          {paginatedOperations.map((op) => (
             <div
               key={op.id}
               className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5 space-y-4 shadow-xs"
@@ -173,6 +204,63 @@ export function OperationsPage(props: OperationsPageProps) {
           ))}
         </div>
       )}
+
+      {/* Pagination Controls (16 per page) */}
+      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+        <span className="text-slate-500 dark:text-slate-400">
+          Página{' '}
+          <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
+            {safeCurrentPage}
+          </span>{' '}
+          de{' '}
+          <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
+            {totalPages}
+          </span>{' '}
+          <span className="text-slate-400 dark:text-slate-500">
+            ({PAGE_SIZE} por página)
+          </span>
+        </span>
+
+        <div className="flex items-center gap-1" role="navigation" aria-label="Paginación de órdenes de trabajo">
+          <button
+            type="button"
+            onClick={() => setCurrentPage(Math.max(1, safeCurrentPage - 1))}
+            disabled={safeCurrentPage <= 1}
+            className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors inline-flex items-center gap-1"
+            aria-label="Página anterior"
+          >
+            <ChevronLeft className="w-3.5 h-3.5" />
+            <span>Anterior</span>
+          </button>
+
+          {Array.from({ length: totalPages }, (_, idx) => idx + 1).map((pageNum) => (
+            <button
+              key={pageNum}
+              type="button"
+              onClick={() => setCurrentPage(pageNum)}
+              aria-current={pageNum === safeCurrentPage ? 'page' : undefined}
+              className={`min-w-[30px] h-[30px] px-2 rounded-lg font-mono font-bold text-xs transition-colors cursor-pointer ${
+                pageNum === safeCurrentPage
+                  ? 'bg-indigo-600 text-white shadow-xs'
+                  : 'border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'
+              }`}
+            >
+              {pageNum}
+            </button>
+          ))}
+
+          <button
+            type="button"
+            onClick={() => setCurrentPage(Math.min(totalPages, safeCurrentPage + 1))}
+            disabled={safeCurrentPage >= totalPages}
+            className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors inline-flex items-center gap-1"
+            aria-label="Página siguiente"
+          >
+            <span>Siguiente</span>
+            <ChevronRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </div>
 
       {/* Milestones & Deliverables Modal */}
       <OperationsMilestonesModal

@@ -183,6 +183,10 @@ export function ClientPortal({
   const QUOTES_PAGE_SIZE = 15;
   const [timelinePage, setTimelinePage] = useState<number>(1);
   const TIMELINE_PAGE_SIZE = 30;
+  const [invoicesPage, setInvoicesPage] = useState<number>(1);
+  const INVOICES_PAGE_SIZE = 30;
+  const [operationsPage, setOperationsPage] = useState<number>(1);
+  const OPERATIONS_PAGE_SIZE = 8;
 
   useEffect(() => {
     loadPortalData(false);
@@ -584,7 +588,9 @@ export function ClientPortal({
                 </span>
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Visualizando únicamente el resumen de su empresa y el estado de sus requerimientos.
+                {activeTab === 'operations'
+                  ? 'Supervise en tiempo real el despacho de equipamiento físico y la ejecución de servicios especializados.'
+                  : 'Visualizando únicamente el resumen de su empresa y el estado de sus requerimientos.'}
               </p>
             </div>
 
@@ -844,96 +850,190 @@ export function ClientPortal({
                 </div>
 
                 {/* Invoices Table */}
-                <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs overflow-hidden">
-                  <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center">
-                    <h3 className="font-bold text-slate-900 dark:text-white text-sm">{t.invoicesTitle}</h3>
-                    <span className="text-xs text-slate-500 dark:text-slate-400">Vinculadas a cotizaciones aprobadas</span>
-                  </div>
+                {(() => {
+                  const totalInvoicePages = Math.max(1, Math.ceil(invoices.length / INVOICES_PAGE_SIZE));
+                  const safeInvoicesPage = Math.min(invoicesPage, totalInvoicePages);
+                  const invoiceStartIdx = (safeInvoicesPage - 1) * INVOICES_PAGE_SIZE;
+                  const paginatedClientInvoices = invoices.slice(invoiceStartIdx, invoiceStartIdx + INVOICES_PAGE_SIZE);
 
-                  {invoices.length === 0 ? (
-                    <div className="p-8 text-center text-slate-400 text-xs">
-                      {t.noInvoicesFound}
-                    </div>
-                  ) : (
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-left text-xs">
-                        <thead className="bg-slate-50 dark:bg-slate-800/80 text-slate-600 dark:text-slate-400 font-semibold border-b border-slate-200 dark:border-slate-800">
-                          <tr>
-                            <th className="py-3 px-4">{t.invoiceNumber}</th>
-                            <th className="py-3 px-3">Cotización Ref.</th>
-                            <th className="py-3 px-3">{t.issueDate}</th>
-                            <th className="py-3 px-3">{t.dueDate}</th>
-                            <th className="py-3 px-3 text-right">Importe Total</th>
-                            <th className="py-3 px-3 text-center">{t.status}</th>
-                            <th className="py-3 px-4 text-right">{t.actions}</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                          {invoices.map((inv) => (
-                            <tr key={inv.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                              <td className="py-3 px-4 font-mono font-bold text-slate-900 dark:text-white">
-                                {inv.invoiceNumber}
-                              </td>
-                              <td className="py-3 px-3 font-mono text-indigo-600 dark:text-indigo-400 font-bold">
-                                {inv.quotationNumber}
-                              </td>
-                              <td className="py-3 px-3 text-slate-600 dark:text-slate-300">{inv.issueDate}</td>
-                              <td className="py-3 px-3 text-slate-500 dark:text-slate-400">{inv.dueDate}</td>
-                              <td className="py-3 px-3 text-right font-mono font-bold text-slate-900 dark:text-white">
-                                {formatMoney(inv.total)}
-                              </td>
-                              <td className="py-3 px-3 text-center">
-                                {inv.status === 'PAID' ? (
-                                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 dark:bg-emerald-500/20 text-emerald-800 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-500/40">
-                                    <Check className="w-3 h-3" /> {t.paid}
-                                  </span>
-                                ) : inv.status === 'PARTIAL' ? (
-                                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-100 dark:bg-blue-500/20 text-blue-800 dark:text-blue-400 border border-blue-300 dark:border-blue-500/40">
-                                    <Clock className="w-3 h-3" /> Pago Parcial
-                                  </span>
-                                ) : inv.status === 'OVERDUE' ? (
-                                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 dark:bg-rose-500/20 text-rose-800 dark:text-rose-400 border border-rose-300 dark:border-rose-500/40">
-                                    <AlertCircle className="w-3 h-3" /> {t.overdue}
-                                  </span>
-                                ) : (
-                                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 dark:bg-amber-500/20 text-amber-800 dark:text-amber-400 border border-amber-300 dark:border-amber-500/40">
-                                    <Clock className="w-3 h-3" /> {t.pendingPayment}
-                                  </span>
-                                )}
-                              </td>
-                              <td className="py-3 px-4 text-right">
-                                <button
-                                  onClick={() => setSelectedInvoice(inv)}
-                                  className="px-3 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-600 hover:text-white transition-colors text-xs font-medium cursor-pointer inline-flex items-center gap-1.5"
-                                >
-                                  <Receipt className="w-3.5 h-3.5" />
-                                  {t.viewInvoice}
-                                </button>
-                              </td>
-                            </tr>
+                  return (
+                    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs overflow-hidden">
+                      <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <div>
+                          <h3 className="font-bold text-slate-900 dark:text-white text-sm">{t.invoicesTitle}</h3>
+                          <p className="text-xs text-slate-500 dark:text-slate-400">
+                            Vinculadas a cotizaciones aprobadas
+                          </p>
+                        </div>
+                        <span className="text-xs text-slate-500 dark:text-slate-400 shrink-0">
+                          Mostrando{' '}
+                          <span className="font-mono font-bold text-slate-700 dark:text-slate-200">
+                            {invoices.length === 0 ? 0 : invoiceStartIdx + 1}–{Math.min(invoiceStartIdx + INVOICES_PAGE_SIZE, invoices.length)}
+                          </span>{' '}
+                          de{' '}
+                          <span className="font-mono font-bold text-slate-700 dark:text-slate-200">
+                            {invoices.length}
+                          </span>{' '}
+                          documentos
+                        </span>
+                      </div>
+
+                      {invoices.length === 0 ? (
+                        <div className="p-8 text-center text-slate-400 text-xs">
+                          {t.noInvoicesFound}
+                        </div>
+                      ) : (
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left text-xs">
+                            <thead className="bg-slate-50 dark:bg-slate-800/80 text-slate-600 dark:text-slate-400 font-semibold border-b border-slate-200 dark:border-slate-800">
+                              <tr>
+                                <th className="py-3 px-4">{t.invoiceNumber}</th>
+                                <th className="py-3 px-3">Cotización Ref.</th>
+                                <th className="py-3 px-3">{t.issueDate}</th>
+                                <th className="py-3 px-3">{t.dueDate}</th>
+                                <th className="py-3 px-3 text-right">Importe Total</th>
+                                <th className="py-3 px-3 text-center">{t.status}</th>
+                                <th className="py-3 px-4 text-right">{t.actions}</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                              {paginatedClientInvoices.map((inv) => (
+                                <tr key={inv.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                                  <td className="py-3 px-4 font-mono font-bold text-slate-900 dark:text-white">
+                                    {inv.invoiceNumber}
+                                  </td>
+                                  <td className="py-3 px-3 font-mono text-indigo-600 dark:text-indigo-400 font-bold">
+                                    {inv.quotationNumber}
+                                  </td>
+                                  <td className="py-3 px-3 text-slate-600 dark:text-slate-300">{inv.issueDate}</td>
+                                  <td className="py-3 px-3 text-slate-500 dark:text-slate-400">{inv.dueDate}</td>
+                                  <td className="py-3 px-3 text-right font-mono font-bold text-slate-900 dark:text-white">
+                                    {formatMoney(inv.total)}
+                                  </td>
+                                  <td className="py-3 px-3 text-center">
+                                    {inv.status === 'PAID' ? (
+                                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 dark:bg-emerald-500/20 text-emerald-800 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-500/40">
+                                        <Check className="w-3 h-3" /> {t.paid}
+                                      </span>
+                                    ) : inv.status === 'PARTIAL' ? (
+                                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-100 dark:bg-blue-500/20 text-blue-800 dark:text-blue-400 border border-blue-300 dark:border-blue-500/40">
+                                        <Clock className="w-3 h-3" /> Pago Parcial
+                                      </span>
+                                    ) : inv.status === 'OVERDUE' ? (
+                                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 dark:bg-rose-500/20 text-rose-800 dark:text-rose-400 border border-rose-300 dark:border-rose-500/40">
+                                        <AlertCircle className="w-3 h-3" /> {t.overdue}
+                                      </span>
+                                    ) : (
+                                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 dark:bg-amber-500/20 text-amber-800 dark:text-amber-400 border border-amber-300 dark:border-amber-500/40">
+                                        <Clock className="w-3 h-3" /> {t.pendingPayment}
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td className="py-3 px-4 text-right">
+                                    <button
+                                      onClick={() => setSelectedInvoice(inv)}
+                                      className="px-3 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-600 hover:text-white transition-colors text-xs font-medium cursor-pointer inline-flex items-center gap-1.5"
+                                    >
+                                      <Receipt className="w-3.5 h-3.5" />
+                                      {t.viewInvoice}
+                                    </button>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+
+                      {/* Pagination Footer (30 per page) */}
+                      <div className="p-4 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+                        <span className="text-slate-500 dark:text-slate-400">
+                          Página{' '}
+                          <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
+                            {safeInvoicesPage}
+                          </span>{' '}
+                          de{' '}
+                          <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
+                            {totalInvoicePages}
+                          </span>{' '}
+                          <span className="text-slate-400 dark:text-slate-500">
+                            ({INVOICES_PAGE_SIZE} por página)
+                          </span>
+                        </span>
+
+                        <div className="flex items-center gap-1" role="navigation" aria-label="Paginación de documentos de cobro">
+                          <button
+                            type="button"
+                            onClick={() => setInvoicesPage(Math.max(1, safeInvoicesPage - 1))}
+                            disabled={safeInvoicesPage <= 1}
+                            className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors inline-flex items-center gap-1"
+                            aria-label="Página anterior"
+                          >
+                            <ChevronLeft className="w-3.5 h-3.5" />
+                            <span>Anterior</span>
+                          </button>
+
+                          {Array.from({ length: totalInvoicePages }, (_, idx) => idx + 1).map((pageNum) => (
+                            <button
+                              key={pageNum}
+                              type="button"
+                              onClick={() => setInvoicesPage(pageNum)}
+                              aria-current={pageNum === safeInvoicesPage ? 'page' : undefined}
+                              className={`min-w-[30px] h-[30px] px-2 rounded-lg font-mono font-bold text-xs transition-colors cursor-pointer ${
+                                pageNum === safeInvoicesPage
+                                  ? 'bg-indigo-600 text-white shadow-xs'
+                                  : 'border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'
+                              }`}
+                            >
+                              {pageNum}
+                            </button>
                           ))}
-                        </tbody>
-                      </table>
+
+                          <button
+                            type="button"
+                            onClick={() => setInvoicesPage(Math.min(totalInvoicePages, safeInvoicesPage + 1))}
+                            disabled={safeInvoicesPage >= totalInvoicePages}
+                            className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors inline-flex items-center gap-1"
+                            aria-label="Página siguiente"
+                          >
+                            <span>Siguiente</span>
+                            <ChevronRight className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
                     </div>
-                  )}
-                </div>
+                  );
+                })()}
               </div>
             )}
 
             {/* ======================================================== */}
             {/* TAB: OPERACIONES Y ENTREGAS (ENABLED)                   */}
             {/* ======================================================== */}
-            {activeTab === 'operations' && (
-              <div className="space-y-6">
-                <div>
-                  <h3 className="font-bold text-slate-900 dark:text-white text-base">{t.operationsTitle}</h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Supervise en tiempo real el despacho de equipamiento físico y la ejecución de servicios especializados.
-                  </p>
-                </div>
+            {activeTab === 'operations' && (() => {
+              const totalOperationPages = Math.max(1, Math.ceil(operations.length / OPERATIONS_PAGE_SIZE));
+              const safeOperationsPage = Math.min(operationsPage, totalOperationPages);
+              const operationStartIdx = (safeOperationsPage - 1) * OPERATIONS_PAGE_SIZE;
+              const paginatedClientOperations = operations.slice(operationStartIdx, operationStartIdx + OPERATIONS_PAGE_SIZE);
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {operations.map((op) => (
+              return (
+                <div className="space-y-6">
+                  <div className="flex items-center justify-end">
+                    <span className="text-xs text-slate-500 dark:text-slate-400 shrink-0">
+                      Mostrando{' '}
+                      <span className="font-mono font-bold text-slate-700 dark:text-slate-200">
+                        {operations.length === 0 ? 0 : operationStartIdx + 1}–{Math.min(operationStartIdx + OPERATIONS_PAGE_SIZE, operations.length)}
+                      </span>{' '}
+                      de{' '}
+                      <span className="font-mono font-bold text-slate-700 dark:text-slate-200">
+                        {operations.length}
+                      </span>{' '}
+                      órdenes
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {paginatedClientOperations.map((op) => (
                     <div
                       key={op.id}
                       className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-4 shadow-xs"
@@ -1128,9 +1228,67 @@ export function ClientPortal({
                       )}
                     </div>
                   ))}
+                  </div>
+
+                  {/* Pagination Footer (8 per page) */}
+                  <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+                    <span className="text-slate-500 dark:text-slate-400">
+                      Página{' '}
+                      <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
+                        {safeOperationsPage}
+                      </span>{' '}
+                      de{' '}
+                      <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
+                        {totalOperationPages}
+                      </span>{' '}
+                      <span className="text-slate-400 dark:text-slate-500">
+                        ({OPERATIONS_PAGE_SIZE} por página)
+                      </span>
+                    </span>
+
+                    <div className="flex items-center gap-1" role="navigation" aria-label="Paginación de órdenes de trabajo">
+                      <button
+                        type="button"
+                        onClick={() => setOperationsPage(Math.max(1, safeOperationsPage - 1))}
+                        disabled={safeOperationsPage <= 1}
+                        className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors inline-flex items-center gap-1"
+                        aria-label="Página anterior"
+                      >
+                        <ChevronLeft className="w-3.5 h-3.5" />
+                        <span>Anterior</span>
+                      </button>
+
+                      {Array.from({ length: totalOperationPages }, (_, idx) => idx + 1).map((pageNum) => (
+                        <button
+                          key={pageNum}
+                          type="button"
+                          onClick={() => setOperationsPage(pageNum)}
+                          aria-current={pageNum === safeOperationsPage ? 'page' : undefined}
+                          className={`min-w-[30px] h-[30px] px-2 rounded-lg font-mono font-bold text-xs transition-colors cursor-pointer ${
+                            pageNum === safeOperationsPage
+                              ? 'bg-indigo-600 text-white shadow-xs'
+                              : 'border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'
+                          }`}
+                        >
+                          {pageNum}
+                        </button>
+                      ))}
+
+                      <button
+                        type="button"
+                        onClick={() => setOperationsPage(Math.min(totalOperationPages, safeOperationsPage + 1))}
+                        disabled={safeOperationsPage >= totalOperationPages}
+                        className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors inline-flex items-center gap-1"
+                        aria-label="Página siguiente"
+                      >
+                        <span>Siguiente</span>
+                        <ChevronRight className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
             {/* ======================================================== */}
             {/* TAB: QUOTATIONS LIST                                     */}

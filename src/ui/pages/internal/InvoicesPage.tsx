@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Invoice, User } from '../../../modules/types.ts';
 import { formatMoney } from '../../../shared-kernel/formatMoney.ts';
 import { InvoicesGridSkeleton } from '../../components/Skeleton.tsx';
@@ -9,6 +10,8 @@ import { useInvoices } from '../../hooks/useInvoices.ts';
 import { api } from '../../api.ts';
 import { InternalOutletContext } from '../../layouts/AppLayout.tsx';
 
+const PAGE_SIZE = 30;
+
 interface InvoicesPageProps {
   user?: User;
 }
@@ -17,6 +20,7 @@ export function InvoicesPage(props: InvoicesPageProps) {
   const context = (useOutletContext<InternalOutletContext>() || {}) as Partial<InternalOutletContext>;
   const user = props.user || context.user;
   const { invoices, loading, error, refreshInvoices, updateInvoiceInList } = useInvoices();
+  const [currentPage, setCurrentPage] = useState(1);
   const [selectedInvoiceForPayment, setSelectedInvoiceForPayment] = useState<Invoice | null>(null);
   const [selectedInvoiceDetails, setSelectedInvoiceDetails] = useState<Invoice | null>(null);
 
@@ -30,6 +34,11 @@ export function InvoicesPage(props: InvoicesPageProps) {
     return acc + (i.paidAmount || 0);
   }, 0);
   const totalPending = Math.max(0, totalBilled - totalPaid);
+
+  const totalPages = Math.max(1, Math.ceil(invoices.length / PAGE_SIZE));
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const startIndex = (safeCurrentPage - 1) * PAGE_SIZE;
+  const paginatedInvoices = invoices.slice(startIndex, startIndex + PAGE_SIZE);
 
   return (
     <div className="space-y-6">
@@ -74,12 +83,25 @@ export function InvoicesPage(props: InvoicesPageProps) {
 
       {/* Table */}
       <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5 space-y-4 shadow-xs">
-        <div className="flex justify-between items-center">
-          <h3 className="font-bold text-slate-900 dark:text-white text-sm">
-            Documentos de Cobro Emitidos (Chile)
-          </h3>
-          <span className="text-xs text-slate-500 dark:text-slate-400">
-            Generados automáticamente a partir de cotizaciones aceptadas
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div>
+            <h3 className="font-bold text-slate-900 dark:text-white text-sm">
+              Documentos de Cobro Emitidos (Chile)
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Generados automáticamente a partir de cotizaciones aceptadas
+            </p>
+          </div>
+          <span className="text-xs text-slate-500 dark:text-slate-400 shrink-0">
+            Mostrando{' '}
+            <span className="font-mono font-bold text-slate-700 dark:text-slate-200">
+              {invoices.length === 0 ? 0 : startIndex + 1}–{Math.min(startIndex + PAGE_SIZE, invoices.length)}
+            </span>{' '}
+            de{' '}
+            <span className="font-mono font-bold text-slate-700 dark:text-slate-200">
+              {invoices.length}
+            </span>{' '}
+            documentos
           </span>
         </div>
 
@@ -103,7 +125,7 @@ export function InvoicesPage(props: InvoicesPageProps) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                {invoices.map((inv) => {
+                {paginatedInvoices.map((inv) => {
                   const isPaid = inv.status === 'PAID';
                   const paidAmount = inv.paidAmount || (isPaid ? inv.total : 0);
                   const balance = inv.balance !== undefined ? inv.balance : Math.max(0, (inv.total || 0) - paidAmount);
@@ -177,6 +199,63 @@ export function InvoicesPage(props: InvoicesPageProps) {
             </table>
           </div>
         )}
+
+        {/* Pagination Controls (30 per page) */}
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2 border-t border-slate-100 dark:border-slate-800 text-xs">
+          <span className="text-slate-500 dark:text-slate-400">
+            Página{' '}
+            <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
+              {safeCurrentPage}
+            </span>{' '}
+            de{' '}
+            <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
+              {totalPages}
+            </span>{' '}
+            <span className="text-slate-400 dark:text-slate-500">
+              ({PAGE_SIZE} por página)
+            </span>
+          </span>
+
+          <div className="flex items-center gap-1" role="navigation" aria-label="Paginación de documentos de cobro">
+            <button
+              type="button"
+              onClick={() => setCurrentPage(Math.max(1, safeCurrentPage - 1))}
+              disabled={safeCurrentPage <= 1}
+              className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors inline-flex items-center gap-1"
+              aria-label="Página anterior"
+            >
+              <ChevronLeft className="w-3.5 h-3.5" />
+              <span>Anterior</span>
+            </button>
+
+            {Array.from({ length: totalPages }, (_, idx) => idx + 1).map((pageNum) => (
+              <button
+                key={pageNum}
+                type="button"
+                onClick={() => setCurrentPage(pageNum)}
+                aria-current={pageNum === safeCurrentPage ? 'page' : undefined}
+                className={`min-w-[30px] h-[30px] px-2 rounded-lg font-mono font-bold text-xs transition-colors cursor-pointer ${
+                  pageNum === safeCurrentPage
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'
+                }`}
+              >
+                {pageNum}
+              </button>
+            ))}
+
+            <button
+              type="button"
+              onClick={() => setCurrentPage(Math.min(totalPages, safeCurrentPage + 1))}
+              disabled={safeCurrentPage >= totalPages}
+              className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors inline-flex items-center gap-1"
+              aria-label="Página siguiente"
+            >
+              <span>Siguiente</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Payment Modal */}

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { Plus, Search, Users, Briefcase, Pencil, Trash2 } from 'lucide-react';
+import { Plus, Search, Users, Briefcase, Pencil, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Customer, Contact, User } from '../../../modules/types.ts';
 import { hasPermission } from '../../../shared-kernel/permissions.ts';
 import { TableSkeleton } from '../../components/Skeleton.tsx';
@@ -9,6 +9,8 @@ import { CustomerContactsModal } from '../../modals/CustomerContactsModal.tsx';
 import { useCustomers } from '../../hooks/useCustomers.ts';
 import { api } from '../../api.ts';
 import { InternalOutletContext } from '../../layouts/AppLayout.tsx';
+
+const PAGE_SIZE = 30;
 
 interface CustomersPageProps {
   user?: User;
@@ -31,6 +33,7 @@ export function CustomersPage(props: CustomersPageProps) {
   } = useCustomers();
 
   const [search, setSearch] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
   const [customerModalOpen, setCustomerModalOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
 
@@ -67,6 +70,11 @@ export function CustomersPage(props: CustomersPageProps) {
       (c.address && c.address.toLowerCase().includes(q))
     );
   });
+
+  const totalPages = Math.max(1, Math.ceil(filteredCusts.length / PAGE_SIZE));
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const startIndex = (safeCurrentPage - 1) * PAGE_SIZE;
+  const paginatedCusts = filteredCusts.slice(startIndex, startIndex + PAGE_SIZE);
 
   return (
     <div className="space-y-6">
@@ -106,28 +114,48 @@ export function CustomersPage(props: CustomersPageProps) {
       </div>
 
       {/* Search Bar */}
-      <div className="flex items-center gap-3">
-        <div className="relative flex-1">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-          <label htmlFor="customer-search-input" className="sr-only">Buscar clientes</label>
-          <input
-            id="customer-search-input"
-            type="text"
-            placeholder="Buscar por Razón Social, RUT o dirección..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-          />
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-3 flex-1">
+          <div className="relative flex-1">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <label htmlFor="customer-search-input" className="sr-only">Buscar clientes</label>
+            <input
+              id="customer-search-input"
+              type="text"
+              placeholder="Buscar por Razón Social, RUT o dirección..."
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="w-full pl-9 pr-4 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+            />
+          </div>
+          {search && (
+            <button
+              type="button"
+              onClick={() => {
+                setSearch('');
+                setCurrentPage(1);
+              }}
+              className="text-xs font-semibold text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 cursor-pointer shrink-0"
+            >
+              Limpiar
+            </button>
+          )}
         </div>
-        {search && (
-          <button
-            type="button"
-            onClick={() => setSearch('')}
-            className="text-xs font-semibold text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 cursor-pointer"
-          >
-            Limpiar
-          </button>
-        )}
+
+        <span className="text-xs text-slate-500 dark:text-slate-400 shrink-0 self-end sm:self-auto">
+          Mostrando{' '}
+          <span className="font-mono font-bold text-slate-700 dark:text-slate-200">
+            {filteredCusts.length === 0 ? 0 : startIndex + 1}–{Math.min(startIndex + PAGE_SIZE, filteredCusts.length)}
+          </span>{' '}
+          de{' '}
+          <span className="font-mono font-bold text-slate-700 dark:text-slate-200">
+            {filteredCusts.length}
+          </span>{' '}
+          clientes
+        </span>
       </div>
 
       {/* Customers Table */}
@@ -152,7 +180,7 @@ export function CustomersPage(props: CustomersPageProps) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                {filteredCusts.map((c) => {
+                {paginatedCusts.map((c) => {
                   const rep = usersList.find((u) => u.id === c.salesRepId);
                   return (
                     <tr key={c.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
@@ -216,6 +244,63 @@ export function CustomersPage(props: CustomersPageProps) {
             </table>
           </div>
         )}
+
+        {/* Pagination Controls (30 per page) */}
+        <div className="p-4 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+          <span className="text-slate-500 dark:text-slate-400">
+            Página{' '}
+            <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
+              {safeCurrentPage}
+            </span>{' '}
+            de{' '}
+            <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
+              {totalPages}
+            </span>{' '}
+            <span className="text-slate-400 dark:text-slate-500">
+              ({PAGE_SIZE} por página)
+            </span>
+          </span>
+
+          <div className="flex items-center gap-1" role="navigation" aria-label="Paginación de clientes">
+            <button
+              type="button"
+              onClick={() => setCurrentPage(Math.max(1, safeCurrentPage - 1))}
+              disabled={safeCurrentPage <= 1}
+              className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors inline-flex items-center gap-1"
+              aria-label="Página anterior"
+            >
+              <ChevronLeft className="w-3.5 h-3.5" />
+              <span>Anterior</span>
+            </button>
+
+            {Array.from({ length: totalPages }, (_, idx) => idx + 1).map((pageNum) => (
+              <button
+                key={pageNum}
+                type="button"
+                onClick={() => setCurrentPage(pageNum)}
+                aria-current={pageNum === safeCurrentPage ? 'page' : undefined}
+                className={`min-w-[30px] h-[30px] px-2 rounded-lg font-mono font-bold text-xs transition-colors cursor-pointer ${
+                  pageNum === safeCurrentPage
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'
+                }`}
+              >
+                {pageNum}
+              </button>
+            ))}
+
+            <button
+              type="button"
+              onClick={() => setCurrentPage(Math.min(totalPages, safeCurrentPage + 1))}
+              disabled={safeCurrentPage >= totalPages}
+              className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors inline-flex items-center gap-1"
+              aria-label="Página siguiente"
+            >
+              <span>Siguiente</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Customer Modal (Create & Edit) */}

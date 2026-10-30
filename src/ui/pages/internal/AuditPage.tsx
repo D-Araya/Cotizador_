@@ -10,10 +10,14 @@ import {
   Users,
   DollarSign,
   UserCheck,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { AuditLog } from '../../../modules/types.ts';
 import { useAudit } from '../../hooks/useAudit.ts';
 import { TableSkeleton } from '../../components/Skeleton.tsx';
+
+const PAGE_SIZE = 30;
 
 interface AuditPageProps {
   logs?: AuditLog[];
@@ -29,6 +33,7 @@ export function AuditPage({ logs: propLogs, loading: propLoading }: AuditPagePro
   const [auditEntityFilter, setAuditEntityFilter] = useState<string>('ALL');
   const [auditRoleFilter, setAuditRoleFilter] = useState<string>('ALL');
   const [auditSearch, setAuditSearch] = useState<string>('');
+  const [currentPage, setCurrentPage] = useState<number>(1);
   const [exportingCsv, setExportingCsv] = useState<boolean>(false);
 
   function handleExportCsv() {
@@ -87,6 +92,11 @@ export function AuditPage({ logs: propLogs, loading: propLoading }: AuditPagePro
       (log.actorName || '').toLowerCase().includes(q)
     );
   });
+
+  const totalPages = Math.max(1, Math.ceil(filteredLogs.length / PAGE_SIZE));
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const startIndex = (safeCurrentPage - 1) * PAGE_SIZE;
+  const paginatedLogs = filteredLogs.slice(startIndex, startIndex + PAGE_SIZE);
 
   return (
     <div className="space-y-6">
@@ -154,7 +164,10 @@ export function AuditPage({ logs: propLogs, loading: propLoading }: AuditPagePro
               <button
                 key={f.key}
                 type="button"
-                onClick={() => setAuditEntityFilter(f.key)}
+                onClick={() => {
+                  setAuditEntityFilter(f.key);
+                  setCurrentPage(1);
+                }}
                 className={`px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer transition-colors ${
                   auditEntityFilter === f.key
                     ? 'bg-indigo-600 text-white shadow-2xs'
@@ -179,7 +192,10 @@ export function AuditPage({ logs: propLogs, loading: propLoading }: AuditPagePro
               <button
                 key={r.key}
                 type="button"
-                onClick={() => setAuditRoleFilter(r.key)}
+                onClick={() => {
+                  setAuditRoleFilter(r.key);
+                  setCurrentPage(1);
+                }}
                 className={`px-2 py-1 rounded text-[11px] font-semibold cursor-pointer transition-colors ${
                   auditRoleFilter === r.key
                     ? 'bg-slate-800 dark:bg-slate-200 text-white dark:text-slate-900 font-bold'
@@ -193,16 +209,33 @@ export function AuditPage({ logs: propLogs, loading: propLoading }: AuditPagePro
         </div>
 
         {/* Search inside logs */}
-        <div className="relative">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            aria-label="Buscar en registros de auditoría"
-            placeholder="Buscar por descripción, ítem, cliente o autor del cambio..."
-            value={auditSearch}
-            onChange={(e) => setAuditSearch(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 text-xs rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-          />
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="relative flex-1">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              aria-label="Buscar en registros de auditoría"
+              placeholder="Buscar por descripción, ítem, cliente o autor del cambio..."
+              value={auditSearch}
+              onChange={(e) => {
+                setAuditSearch(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="w-full pl-9 pr-4 py-2 text-xs rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+            />
+          </div>
+
+          <span className="text-xs text-slate-500 dark:text-slate-400 shrink-0 self-end sm:self-auto">
+            Mostrando{' '}
+            <span className="font-mono font-bold text-slate-700 dark:text-slate-200">
+              {filteredLogs.length === 0 ? 0 : startIndex + 1}–{Math.min(startIndex + PAGE_SIZE, filteredLogs.length)}
+            </span>{' '}
+            de{' '}
+            <span className="font-mono font-bold text-slate-700 dark:text-slate-200">
+              {filteredLogs.length}
+            </span>{' '}
+            registros
+          </span>
         </div>
       </div>
 
@@ -227,7 +260,7 @@ export function AuditPage({ logs: propLogs, loading: propLoading }: AuditPagePro
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                {filteredLogs.map((log) => (
+                {paginatedLogs.map((log) => (
                   <tr key={log.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
                     <td className="py-3 px-3 font-mono text-slate-500 dark:text-slate-400 whitespace-nowrap text-[11px]">
                       {log.timestamp
@@ -295,6 +328,63 @@ export function AuditPage({ logs: propLogs, loading: propLoading }: AuditPagePro
             </table>
           </div>
         )}
+
+        {/* Pagination Controls (30 per page) */}
+        <div className="p-4 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+          <span className="text-slate-500 dark:text-slate-400">
+            Página{' '}
+            <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
+              {safeCurrentPage}
+            </span>{' '}
+            de{' '}
+            <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
+              {totalPages}
+            </span>{' '}
+            <span className="text-slate-400 dark:text-slate-500">
+              ({PAGE_SIZE} por página)
+            </span>
+          </span>
+
+          <div className="flex items-center gap-1" role="navigation" aria-label="Paginación de auditoría">
+            <button
+              type="button"
+              onClick={() => setCurrentPage(Math.max(1, safeCurrentPage - 1))}
+              disabled={safeCurrentPage <= 1}
+              className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors inline-flex items-center gap-1"
+              aria-label="Página anterior"
+            >
+              <ChevronLeft className="w-3.5 h-3.5" />
+              <span>Anterior</span>
+            </button>
+
+            {Array.from({ length: totalPages }, (_, idx) => idx + 1).map((pageNum) => (
+              <button
+                key={pageNum}
+                type="button"
+                onClick={() => setCurrentPage(pageNum)}
+                aria-current={pageNum === safeCurrentPage ? 'page' : undefined}
+                className={`min-w-[30px] h-[30px] px-2 rounded-lg font-mono font-bold text-xs transition-colors cursor-pointer ${
+                  pageNum === safeCurrentPage
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'
+                }`}
+              >
+                {pageNum}
+              </button>
+            ))}
+
+            <button
+              type="button"
+              onClick={() => setCurrentPage(Math.min(totalPages, safeCurrentPage + 1))}
+              disabled={safeCurrentPage >= totalPages}
+              className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors inline-flex items-center gap-1"
+              aria-label="Página siguiente"
+            >
+              <span>Siguiente</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );
