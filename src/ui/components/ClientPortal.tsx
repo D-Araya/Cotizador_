@@ -181,6 +181,8 @@ export function ClientPortal({
   const [portalToast, setPortalToast] = useState<string | null>(null);
   const [quotesPage, setQuotesPage] = useState<number>(1);
   const QUOTES_PAGE_SIZE = 15;
+  const [timelinePage, setTimelinePage] = useState<number>(1);
+  const TIMELINE_PAGE_SIZE = 30;
 
   useEffect(() => {
     loadPortalData(false);
@@ -1144,7 +1146,15 @@ export function ClientPortal({
                   <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center">
                     <h3 className="font-bold text-slate-900 dark:text-white text-sm">{t.quotations}</h3>
                     <span className="text-xs text-slate-500 dark:text-slate-400">
-                      Mostrando {quotations.length === 0 ? 0 : quoteStartIdx + 1}–{Math.min(quoteStartIdx + QUOTES_PAGE_SIZE, quotations.length)} de {quotations.length} propuestas registradas
+                      Mostrando{' '}
+                      <span className="font-mono font-bold text-slate-700 dark:text-slate-200">
+                        {quotations.length === 0 ? 0 : quoteStartIdx + 1}–{Math.min(quoteStartIdx + QUOTES_PAGE_SIZE, quotations.length)}
+                      </span>{' '}
+                      de{' '}
+                      <span className="font-mono font-bold text-slate-700 dark:text-slate-200">
+                        {quotations.length}
+                      </span>{' '}
+                      propuestas registradas
                     </span>
                   </div>
 
@@ -1366,34 +1376,115 @@ export function ClientPortal({
             {/* ======================================================== */}
             {/* TAB: TIMELINE                                            */}
             {/* ======================================================== */}
-            {activeTab === 'timeline' && (
-              <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 space-y-4 shadow-xs">
-                <h3 className="font-bold text-slate-900 dark:text-white text-base">Historial Cronológico de Cotizaciones</h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Trazabilidad completa de las propuestas enviadas, visualizaciones y decisiones registradas.
-                </p>
+            {activeTab === 'timeline' && (() => {
+              const totalTimelinePages = Math.max(1, Math.ceil(timeline.length / TIMELINE_PAGE_SIZE));
+              const safeTimelinePage = Math.min(timelinePage, totalTimelinePages);
+              const timelineStartIdx = (safeTimelinePage - 1) * TIMELINE_PAGE_SIZE;
+              const paginatedTimeline = timeline.slice(timelineStartIdx, timelineStartIdx + TIMELINE_PAGE_SIZE);
 
-                <div className="relative pl-6 space-y-6 before:content-[''] before:absolute before:left-2 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-200 dark:before:bg-slate-800">
-                  {timeline.map((entry, idx) => (
-                    <div key={idx} className="relative space-y-1">
-                      <div className="absolute -left-[22px] top-1 w-3 h-3 rounded-full bg-indigo-600 dark:bg-indigo-500 ring-4 ring-white dark:ring-slate-900" />
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono font-bold text-slate-900 dark:text-white text-xs">
-                          {entry.quotationNumber}
-                        </span>
-                        <StatusBadge status={entry.status} />
-                        <span className="text-[11px] text-slate-500 font-mono">
-                          {entry.timestamp ? new Date(entry.timestamp).toLocaleString() : ''}
-                        </span>
-                      </div>
-                      <p className="text-xs text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/60 p-2.5 rounded-lg border border-slate-200 dark:border-slate-700">
-                        {entry.comment} &mdash; <span className="text-slate-500 dark:text-slate-400">Por {entry.actor}</span>
+              return (
+                <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs overflow-hidden">
+                  <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                      <h3 className="font-bold text-slate-900 dark:text-white text-base">Historial Cronológico de Cotizaciones</h3>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        Trazabilidad completa de las propuestas enviadas, visualizaciones y decisiones registradas.
                       </p>
                     </div>
-                  ))}
+                    <span className="text-xs text-slate-500 dark:text-slate-400 shrink-0">
+                      Mostrando{' '}
+                      <span className="font-mono font-bold text-slate-700 dark:text-slate-200">
+                        {timeline.length === 0 ? 0 : timelineStartIdx + 1}–{Math.min(timelineStartIdx + TIMELINE_PAGE_SIZE, timeline.length)}
+                      </span>{' '}
+                      de{' '}
+                      <span className="font-mono font-bold text-slate-700 dark:text-slate-200">
+                        {timeline.length}
+                      </span>{' '}
+                      historias
+                    </span>
+                  </div>
+
+                  <div className="p-6">
+                    <div className="relative pl-6 space-y-6 before:content-[''] before:absolute before:left-2 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-200 dark:before:bg-slate-800">
+                      {paginatedTimeline.map((entry, idx) => (
+                        <div key={timelineStartIdx + idx} className="relative space-y-1">
+                          <div className="absolute -left-[22px] top-1 w-3 h-3 rounded-full bg-indigo-600 dark:bg-indigo-500 ring-4 ring-white dark:ring-slate-900" />
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono font-bold text-slate-900 dark:text-white text-xs">
+                              {entry.quotationNumber}
+                            </span>
+                            <StatusBadge status={entry.status} />
+                            <span className="text-[11px] text-slate-500 font-mono">
+                              {entry.timestamp ? new Date(entry.timestamp).toLocaleString() : ''}
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/60 p-2.5 rounded-lg border border-slate-200 dark:border-slate-700">
+                            {entry.comment} &mdash; <span className="text-slate-500 dark:text-slate-400">Por {entry.actor}</span>
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Pagination Footer (30 per page) */}
+                  <div className="p-4 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+                    <span className="text-slate-500 dark:text-slate-400">
+                      Página{' '}
+                      <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
+                        {safeTimelinePage}
+                      </span>{' '}
+                      de{' '}
+                      <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
+                        {totalTimelinePages}
+                      </span>{' '}
+                      <span className="text-slate-400 dark:text-slate-500">
+                        ({TIMELINE_PAGE_SIZE} por página)
+                      </span>
+                    </span>
+
+                    <div className="flex items-center gap-1" role="navigation" aria-label="Paginación de línea de tiempo">
+                      <button
+                        type="button"
+                        onClick={() => setTimelinePage(Math.max(1, safeTimelinePage - 1))}
+                        disabled={safeTimelinePage <= 1}
+                        className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors inline-flex items-center gap-1"
+                        aria-label="Página anterior"
+                      >
+                        <ChevronLeft className="w-3.5 h-3.5" />
+                        <span>Anterior</span>
+                      </button>
+
+                      {Array.from({ length: totalTimelinePages }, (_, idx) => idx + 1).map((pageNum) => (
+                        <button
+                          key={pageNum}
+                          type="button"
+                          onClick={() => setTimelinePage(pageNum)}
+                          aria-current={pageNum === safeTimelinePage ? 'page' : undefined}
+                          className={`min-w-[30px] h-[30px] px-2 rounded-lg font-mono font-bold text-xs transition-colors cursor-pointer ${
+                            pageNum === safeTimelinePage
+                              ? 'bg-indigo-600 text-white shadow-xs'
+                              : 'border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'
+                          }`}
+                        >
+                          {pageNum}
+                        </button>
+                      ))}
+
+                      <button
+                        type="button"
+                        onClick={() => setTimelinePage(Math.min(totalTimelinePages, safeTimelinePage + 1))}
+                        disabled={safeTimelinePage >= totalTimelinePages}
+                        className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors inline-flex items-center gap-1"
+                        aria-label="Página siguiente"
+                      >
+                        <span>Siguiente</span>
+                        <ChevronRight className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
           </div>
         )}
         </main>
