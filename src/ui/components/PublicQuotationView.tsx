@@ -26,7 +26,7 @@ import {
 import { Quotation, CompanySettings, Customer, Contact, User } from '../../modules/types.ts';
 import { StatusBadge, ItemTypeBadge, statusLabels, getEffectiveQuotationStatus } from './CommonBadges.tsx';
 import { QuotationDocumentSkeleton } from './Skeleton.tsx';
-import { apiRequest, getActiveApiUser, notifyQuotationSync, escapeHtml, sanitizeSafeUrl } from '../api.ts';
+import { apiRequest, getActiveApiUser, notifyQuotationSync, subscribeToDomainSync, escapeHtml, sanitizeSafeUrl } from '../api.ts';
 import { formatMoney } from '../../shared-kernel/formatMoney.ts';
 import { downloadQuotationPdf } from '../utils/quotationPdf.ts';
 
@@ -63,8 +63,12 @@ export function PublicQuotationView({ token: propToken }: PublicViewProps) {
   const [copiedLink, setCopiedLink] = useState<boolean>(false);
 
   useEffect(() => {
-    async function loadQuotation() {
-      setLoading(true);
+    let isMounted = true;
+
+    async function loadQuotation(isBackground = false) {
+      if (!isBackground) {
+        setLoading(true);
+      }
       const res = await apiRequest<{
         quotation: Quotation;
         customer: Customer;
@@ -73,32 +77,59 @@ export function PublicQuotationView({ token: propToken }: PublicViewProps) {
         salesRep: User;
       }>(`/api/v1/public/quotations/${token}`);
 
-      setLoading(false);
+      if (!isMounted) return;
+      if (!isBackground) {
+        setLoading(false);
+      }
+
       if (res.data) {
         setQuotation(res.data.quotation);
         setCustomer(res.data.customer);
         setContact(res.data.contact);
         setCompany(res.data.company);
         setSalesRep(res.data.salesRep);
-        if (res.data.contact?.name) {
-          setSignerName(res.data.contact.name);
-          setSignerPosition(res.data.contact.position || 'Representante');
+        if (!isBackground && res.data.contact?.name) {
+          setSignerName((prev) => prev || res.data!.contact.name);
+          setSignerPosition((prev) => prev || res.data!.contact.position || 'Representante');
         }
 
         // Notificar que la cotización fue vista de manera explícita (POST separado)
         // Únicamente ante lectura genuina del cliente (o visitante público sin credenciales de staff)
         const activeUser = getActiveApiUser();
         const isStaff = activeUser && (activeUser.role === 'ADMIN' || activeUser.role === 'SALES_REP');
-        if (res.data.quotation.status === 'SENT' && !isStaff) {
+        if (!isBackground && res.data.quotation.status === 'SENT' && !isStaff) {
           apiRequest(`/api/v1/public/quotations/${token}/view`, { method: 'POST' }).then(() => {
             notifyQuotationSync();
           });
         }
-      } else {
+      } else if (!isBackground) {
         setErrorMsg('No se pudo encontrar la cotización o el enlace ha expirado.');
       }
     }
-    loadQuotation();
+
+    loadQuotation(false);
+
+    const unsubscribe = subscribeToDomainSync(['quotations', 'company'], () => {
+      loadQuotation(true);
+    });
+
+    const handleFocus = () => {
+      loadQuotation(true);
+    };
+    window.addEventListener('focus', handleFocus);
+
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        loadQuotation(true);
+      }
+    }, 4000);
+
+    return () => {
+      isMounted = false;
+      unsubscribe();
+      window.removeEventListener('focus', handleFocus);
+      clearInterval(interval);
+    };
   }, [token]);
 
   async function handleAccept() {
@@ -124,6 +155,7 @@ export function PublicQuotationView({ token: propToken }: PublicViewProps) {
         termsAccepted: true,
         signerName: signerName.trim(),
         signerPosition: signerPosition.trim(),
+        expectedUpdatedAt: quotation?.updatedAt,
       }),
     });
 
@@ -146,7 +178,10 @@ export function PublicQuotationView({ token: propToken }: PublicViewProps) {
 
     const res = await apiRequest(`/api/v1/public/quotations/${token}/reject`, {
       method: 'POST',
-      body: JSON.stringify({ reason: rejectionReason.trim() }),
+      body: JSON.stringify({
+        reason: rejectionReason.trim(),
+        expectedUpdatedAt: quotation?.updatedAt,
+      }),
     });
 
     setActionLoading(false);
@@ -177,7 +212,10 @@ export function PublicQuotationView({ token: propToken }: PublicViewProps) {
       `/api/v1/public/quotations/${token}/request-adjustment`,
       {
         method: 'POST',
-        body: JSON.stringify({ message: adjustmentMessage.trim() }),
+        body: JSON.stringify({
+          message: adjustmentMessage.trim(),
+          expectedUpdatedAt: quotation?.updatedAt,
+        }),
       }
     );
 
@@ -403,7 +441,8 @@ export function PublicQuotationView({ token: propToken }: PublicViewProps) {
   };
 
   const isExpired = effectiveStatus === 'EXPIRED';
-  const canDecide = (quotation.status === 'SENT' || quotation.status === 'VIEWED') && !isExpired;
+  const hasNewerRevision = Boolean((quotation as any).hasNewerRevision);
+  const canDecide = (quotation.status === 'SENT' || quotation.status === 'VIEWED') && !isExpired && !hasNewerRevision;
 
   const handleCopyClientLink = () => {
     const url = `${window.location.origin}/q/${token}`;
@@ -468,17 +507,17 @@ export function PublicQuotationView({ token: propToken }: PublicViewProps) {
                 </p>
                 <p className="text-xs text-amber-800 dark:text-amber-300 mt-0.5">
                   Esta cotización ha sido actualizada por una revisión vigente más reciente:{' '}
-                  <strong>{(quotation as any).latestRevisionNumber}</strong>.
+                  <strong>{(quotation as any).latestRevisionNumber}</strong>. Las decisiones sobre esta versión anterior están bloqueadas.
                 </p>
               </div>
             </div>
             {(quotation as any).latestRevisionToken && (
-              <a
-                href={`?token=${(quotation as any).latestRevisionToken}`}
+              <Link
+                to={`/q/${(quotation as any).latestRevisionToken}`}
                 className="px-3.5 py-1.5 rounded-lg bg-amber-600 text-white font-semibold text-xs hover:bg-amber-700 transition-colors shrink-0"
               >
                 Ver versión vigente
-              </a>
+              </Link>
             )}
           </div>
         )}

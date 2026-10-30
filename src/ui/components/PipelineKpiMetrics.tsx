@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { apiRequest } from '../api.ts';
+import { apiRequest, subscribeToDomainSync, subscribeToAuthUserChange } from '../api.ts';
 import { formatMoney } from '../../shared-kernel/formatMoney.ts';
 import { hasPermission } from '../../shared-kernel/permissions.ts';
 import { CompanySettings, User as UserType } from '../../modules/types.ts';
@@ -30,9 +30,11 @@ export function PipelineKpiMetrics({
   const isGlobalAdmin = currentUser.role === 'ADMIN' && hasPermission(currentUser, 'dashboard:global');
   const canViewAllReps = currentUser.role === 'ADMIN' && hasPermission(currentUser, 'dashboard:by_sales_rep');
 
-  const fetchMetrics = useCallback(async () => {
+  const fetchMetrics = useCallback(async (isBackground = false) => {
     try {
-      setLoading(true);
+      if (!isBackground) {
+        setLoading(true);
+      }
       setError(null);
       const res = await apiRequest<any>('/api/v1/dashboard/pipeline-metrics');
       if (res.data) {
@@ -43,18 +45,35 @@ export function PipelineKpiMetrics({
           setProbViewed(res.data.weightedPipeline.probabilities.VIEWED ?? 50);
           setProbChanges(res.data.weightedPipeline.probabilities.CHANGES_REQUESTED ?? 40);
         }
-      } else if (res.error) {
+      } else if (res.error && !isBackground) {
         setError(res.error.detail || 'Error al obtener métricas del pipeline');
       }
     } catch (err: any) {
-      setError(err.message || 'Error al obtener métricas del pipeline');
+      if (!isBackground) {
+        setError(err.message || 'Error al obtener métricas del pipeline');
+      }
     } finally {
-      setLoading(false);
+      if (!isBackground) {
+        setLoading(false);
+      }
     }
   }, [currentUser.id, currentUser.role]);
 
   useEffect(() => {
-    fetchMetrics();
+    fetchMetrics(false);
+
+    const unsubSync = subscribeToDomainSync(['dashboard', 'quotations', 'company', 'users'], () => {
+      fetchMetrics(true);
+    });
+
+    const unsubAuth = subscribeToAuthUserChange(() => {
+      fetchMetrics(false);
+    });
+
+    return () => {
+      unsubSync();
+      unsubAuth();
+    };
   }, [fetchMetrics]);
 
   const handleSaveProbabilities = async (e: React.FormEvent) => {
@@ -142,7 +161,7 @@ export function PipelineKpiMetrics({
             </button>
           )}
           <button
-            onClick={fetchMetrics}
+            onClick={() => fetchMetrics(false)}
             className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg transition flex items-center gap-1 cursor-pointer shadow-xs"
           >
             <span>🔄</span> Refrescar

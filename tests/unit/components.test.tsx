@@ -23,6 +23,9 @@ vi.mock('../../src/ui/api.ts', () => {
     setAuthToken: vi.fn(),
     setActiveApiUser: vi.fn(),
     clearClientSession: vi.fn(),
+    subscribeToAuthUserChange: vi.fn().mockReturnValue(() => {}),
+    subscribeToDomainSync: vi.fn().mockReturnValue(() => {}),
+    notifyDomainSync: vi.fn(),
     subscribeToQuotationSync: vi.fn().mockReturnValue(() => {}),
     notifyQuotationSync: vi.fn(),
     api: {

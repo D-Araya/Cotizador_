@@ -32,6 +32,8 @@ export const updateQuotationLinesSchema = z.object({
   lines: z.array(quotationLineInputSchema).min(0),
   discountPct: z.number().min(0).max(99.99).optional(),
   marginExceptionReason: z.string().trim().optional(),
+  expectedUpdatedAt: z.string().optional(),
+  expectedStatus: z.string().optional(),
 });
 
 export const quotationSettingsUpdateSchema = z.object({
@@ -43,6 +45,8 @@ export const quotationSettingsUpdateSchema = z.object({
   title: z.string().optional(),
   currency: z.string().optional(),
   discountPct: z.number().min(0).max(99.99).optional(),
+  expectedUpdatedAt: z.string().optional(),
+  expectedStatus: z.string().optional(),
 });
 
 export const quotationExtraCostsSchema = z.object({
@@ -62,12 +66,16 @@ export const quotationExtraCostsSchema = z.object({
       })
     )
     .default([]),
+  expectedUpdatedAt: z.string().optional(),
+  expectedStatus: z.string().optional(),
 });
 
 export const quotationStatusUpdateSchema = z.object({
   status: z.enum(['DRAFT', 'PENDING_APPROVAL', 'SENT', 'VIEWED', 'ACCEPTED', 'REJECTED', 'CHANGES_REQUESTED', 'EXPIRED']),
   note: z.string().trim().max(1000).optional(),
   internalNotes: z.string().trim().max(2000).optional(),
+  expectedUpdatedAt: z.string().optional(),
+  expectedStatus: z.string().optional(),
 });
 
 export const quotationMarginApprovalSchema = z.object({
@@ -119,6 +127,8 @@ export const quotationCreateSchema = z.object({
 export const quotationOfflineAcceptSchema = z.object({
   purchaseOrderNumber: z.string().trim().min(1, 'El N.º de Orden de Compra o referencia es requerido'),
   offlineNote: z.string().trim().min(3, 'El motivo o comentario de aceptación es requerido'),
+  expectedUpdatedAt: z.string().optional(),
+  expectedStatus: z.string().optional(),
 });
 
 export const quotationNextActionSchema = z.object({
@@ -129,12 +139,15 @@ export const quotationNextActionSchema = z.object({
 export const quotationRejectSchema = z.object({
   lossReason: z.string().trim().min(1, 'Debe seleccionar un motivo de pérdida'),
   note: z.string().trim().max(1000).optional(),
+  expectedUpdatedAt: z.string().optional(),
+  expectedStatus: z.string().optional(),
 });
 
 export const publicQuotationAcceptSchema = z.object({
   termsAccepted: z.literal(true, { message: 'Debe aceptar los términos y condiciones' }),
   signerName: z.string().trim().min(2, 'Debe ingresar su nombre completo'),
   signerPosition: z.string().trim().min(2, 'Debe ingresar su cargo en la empresa'),
+  expectedUpdatedAt: z.string().optional(),
 });
 
 export const recordPaymentSchema = z.object({

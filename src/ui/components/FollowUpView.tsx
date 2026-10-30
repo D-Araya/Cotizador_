@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Quotation, User as UserType } from '../../modules/types.ts';
-import { apiRequest } from '../api.ts';
+import { apiRequest, subscribeToDomainSync, subscribeToAuthUserChange } from '../api.ts';
 import { formatMoney } from '../../shared-kernel/formatMoney.ts';
 import { StatusBadge } from './CommonBadges.tsx';
 import {
@@ -72,27 +72,46 @@ export function FollowUpView({
   // Estado para envío de recordatorio a Outbox
   const [sendingReminderId, setSendingReminderId] = useState<string | null>(null);
 
-  const fetchDueQuotes = async () => {
+  const fetchDueQuotes = useCallback(async (isBackground = false) => {
     try {
-      setLoading(true);
+      if (!isBackground) {
+        setLoading(true);
+      }
       setError(null);
       const res = await apiRequest<Quotation[]>('/api/v1/quotations/follow-up/due');
       if (res.data) {
         setDueQuotes(res.data);
-      } else if (res.error) {
+      } else if (res.error && !isBackground) {
         const detail = (res.error as any).detail || (res.error as any).title || 'Error al cargar seguimiento de cotizaciones';
         setError(detail);
       }
     } catch (err: any) {
-      setError(err.message || 'Error de conexión al cargar seguimiento');
+      if (!isBackground) {
+        setError(err.message || 'Error de conexión al cargar seguimiento');
+      }
     } finally {
-      setLoading(false);
+      if (!isBackground) {
+        setLoading(false);
+      }
     }
-  };
+  }, [currentUser.id, currentUser.role]);
 
   useEffect(() => {
-    fetchDueQuotes();
-  }, []);
+    fetchDueQuotes(false);
+
+    const unsubSync = subscribeToDomainSync(['quotations'], () => {
+      fetchDueQuotes(true);
+    });
+
+    const unsubAuth = subscribeToAuthUserChange(() => {
+      fetchDueQuotes(false);
+    });
+
+    return () => {
+      unsubSync();
+      unsubAuth();
+    };
+  }, [fetchDueQuotes]);
 
   const handleOpenEditModal = (q: Quotation) => {
     setEditingQuote(q);
@@ -266,7 +285,7 @@ export function FollowUpView({
 
           <button
             type="button"
-            onClick={fetchDueQuotes}
+            onClick={() => fetchDueQuotes(false)}
             disabled={loading}
             className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold rounded-lg border border-slate-300 dark:border-slate-700 flex items-center gap-1.5 transition cursor-pointer"
             title="Refrescar lista"

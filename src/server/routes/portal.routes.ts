@@ -320,6 +320,24 @@ portalRouter.post('/quotations/:id/request-adjustment', (req: Request, res: Resp
     return sendProblem(res, 404, 'Cotización no encontrada', 'No existe o no pertenece a su empresa.');
   }
 
+  if (quot.isLatestRevision === false || Boolean(quot.supersededByQuotationId)) {
+    return sendProblem(
+      res,
+      409,
+      'Revisión superada',
+      'Existe una revisión más reciente para esta cotización. Solicite ajustes sobre la versión vigente.'
+    );
+  }
+
+  if (req.body?.expectedUpdatedAt && req.body.expectedUpdatedAt !== quot.updatedAt) {
+    return sendProblem(
+      res,
+      409,
+      'Colisión de edición detectada',
+      'La cotización fue modificada recientemente. Recargue el portal antes de enviar su solicitud.'
+    );
+  }
+
   if (quot.status === 'DRAFT') {
     return sendProblem(res, 400, 'Estado inválido', 'Una cotización en borrador no puede recibir solicitudes de ajuste.');
   }

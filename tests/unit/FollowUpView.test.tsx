@@ -10,6 +10,11 @@ vi.mock('../../src/ui/api.ts', () => {
   const mockApiRequest = vi.fn();
   return {
     apiRequest: mockApiRequest,
+    subscribeToAuthUserChange: vi.fn().mockReturnValue(() => {}),
+    subscribeToDomainSync: vi.fn().mockReturnValue(() => {}),
+    notifyDomainSync: vi.fn(),
+    subscribeToQuotationSync: vi.fn().mockReturnValue(() => {}),
+    notifyQuotationSync: vi.fn(),
     api: {
       get: vi.fn(),
       post: vi.fn(),

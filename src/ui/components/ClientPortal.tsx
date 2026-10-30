@@ -32,7 +32,7 @@ import {
 } from 'lucide-react';
 import { Quotation, User as UserType, Invoice, OperationOrder } from '../../modules/types.ts';
 import { StatusBadge, statusLabels, getEffectiveQuotationStatus } from './CommonBadges.tsx';
-import { ThemeSelector } from '../theme.tsx';
+import { SidebarBottomActions } from '../theme.tsx';
 import {
   KpiGridSkeleton,
   TableSkeleton,
@@ -41,7 +41,7 @@ import {
   InvoicesGridSkeleton,
   OperationsGridSkeleton,
 } from './Skeleton.tsx';
-import { apiRequest, subscribeToQuotationSync, notifyQuotationSync, sanitizeSafeUrl } from '../api.ts';
+import { apiRequest, subscribeToDomainSync, notifyQuotationSync, sanitizeSafeUrl } from '../api.ts';
 import { formatMoney } from '../../shared-kernel/formatMoney.ts';
 
 const t = {
@@ -173,8 +173,8 @@ export function ClientPortal({ user, onLogout, onOpenPublicLink, onSwitchUser }:
   useEffect(() => {
     loadPortalData(false);
 
-    // Suscribirse a sincronizaciones automáticas en tiempo real
-    const unsubscribe = subscribeToQuotationSync(() => {
+    // Suscribirse a sincronizaciones automáticas en tiempo real (cotizaciones, facturas, operaciones y empresa)
+    const unsubscribe = subscribeToDomainSync(['portal', 'quotations', 'invoices', 'operations', 'company'], () => {
       loadPortalData(true);
     });
 
@@ -291,10 +291,10 @@ export function ClientPortal({ user, onLogout, onOpenPublicLink, onSwitchUser }:
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col md:flex-row transition-colors">
+    <div className="min-h-screen md:h-screen md:overflow-hidden bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col md:flex-row transition-colors">
       {/* SIDEBAR */}
-      <aside className="w-full md:w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 p-5 flex flex-col justify-between shrink-0 text-slate-800 dark:text-slate-100 transition-colors">
-        <div className="space-y-6">
+      <aside className="w-full md:w-64 md:h-full bg-white dark:bg-slate-900 border-b md:border-b-0 md:border-r border-slate-200 dark:border-slate-800 p-4 flex flex-col justify-between shrink-0 overflow-hidden text-slate-800 dark:text-slate-100 transition-colors">
+        <div className="flex-1 overflow-y-auto min-h-0 space-y-6">
           {/* Brand */}
           <div className="flex items-center gap-3 h-12 shrink-0">
             <div className="w-9 h-9 rounded-xl bg-indigo-600 flex items-center justify-center font-extrabold text-white shadow-md shrink-0">
@@ -404,10 +404,13 @@ export function ClientPortal({ user, onLogout, onOpenPublicLink, onSwitchUser }:
             </button>
           </nav>
         </div>
+
+        {/* Botones inferiores compartidos entre los tres portales */}
+        <SidebarBottomActions onLogout={onLogout} />
       </aside>
 
       {/* MAIN VIEW */}
-      <main className="flex-1 p-6 md:p-8 overflow-y-auto">
+      <main className="flex-1 p-6 md:p-8 overflow-y-auto min-w-0 min-h-0">
         {/* HEADER */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-6 border-b border-slate-200 dark:border-slate-800">
           <div>
@@ -460,20 +463,6 @@ export function ClientPortal({ user, onLogout, onOpenPublicLink, onSwitchUser }:
                 </button>
               </div>
             )}
-
-            {/* Theme Selector */}
-            <ThemeSelector />
-
-            {/* Logout button */}
-            <button
-              type="button"
-              onClick={onLogout}
-              aria-label={t.logout}
-              title={t.logout}
-              className="p-2 rounded-lg text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 focus:outline-none focus:ring-2 focus:ring-rose-500 cursor-pointer"
-            >
-              <LogOut className="w-4 h-4" />
-            </button>
           </div>
         </div>
 

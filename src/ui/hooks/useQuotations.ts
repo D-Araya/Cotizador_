@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Quotation, QuotationKpis } from '../../modules/types.ts';
-import { api, subscribeToQuotationSync, notifyQuotationSync } from '../api.ts';
+import { api, subscribeToDomainSync, subscribeToAuthUserChange, notifyQuotationSync } from '../api.ts';
 
 export function useQuotations() {
   const [quotations, setQuotations] = useState<Quotation[]>([]);
@@ -56,8 +56,13 @@ export function useQuotations() {
     fetchQuotations(false);
 
     // Subscribe to cross-tab / cross-component sync events
-    const unsubscribe = subscribeToQuotationSync(() => {
+    const unsubscribe = subscribeToDomainSync(['quotations', 'company'], () => {
       fetchQuotations(true);
+    });
+
+    // Re-hydrate immediately when active user/role changes in the tab
+    const unsubscribeAuth = subscribeToAuthUserChange(() => {
+      fetchQuotations(false);
     });
 
     // Auto-refresh when tab/window gains focus
@@ -76,6 +81,7 @@ export function useQuotations() {
     return () => {
       isMountedRef.current = false;
       unsubscribe();
+      unsubscribeAuth();
       window.removeEventListener('focus', handleFocus);
       clearInterval(interval);
     };

@@ -184,6 +184,24 @@ publicRouter.post('/quotations/:token/accept', async (req: Request, res: Respons
     );
   }
 
+  if (quot.isLatestRevision === false || Boolean(quot.supersededByQuotationId)) {
+    return sendProblem(
+      res,
+      409,
+      'Revisión superada',
+      'Existe una revisión más reciente para esta cotización. Por favor abra la versión vigente para registrar su decisión.'
+    );
+  }
+
+  if (req.body?.expectedUpdatedAt && req.body.expectedUpdatedAt !== quot.updatedAt) {
+    return sendProblem(
+      res,
+      409,
+      'Colisión de edición detectada',
+      'La propuesta fue actualizada recientemente por el asesor comercial. Recargue la página antes de confirmar su decisión.'
+    );
+  }
+
   if (quot.status === 'DRAFT') {
     return sendProblem(res, 400, 'Estado inválido', 'Una cotización en borrador no puede ser aceptada.');
   }
@@ -273,6 +291,24 @@ publicRouter.post('/quotations/:token/reject', (req: Request, res: Response) => 
     return sendProblem(res, 404, 'Cotización no encontrada', 'No existe.');
   }
 
+  if (quot.isLatestRevision === false || Boolean(quot.supersededByQuotationId)) {
+    return sendProblem(
+      res,
+      409,
+      'Revisión superada',
+      'Existe una revisión más reciente para esta cotización. Por favor abra la versión vigente para registrar su decisión.'
+    );
+  }
+
+  if (req.body?.expectedUpdatedAt && req.body.expectedUpdatedAt !== quot.updatedAt) {
+    return sendProblem(
+      res,
+      409,
+      'Colisión de edición detectada',
+      'La propuesta fue actualizada recientemente por el asesor comercial. Recargue la página antes de confirmar su decisión.'
+    );
+  }
+
   if (quot.status === 'DRAFT') {
     return sendProblem(res, 400, 'Estado inválido', 'Una cotización en borrador no puede ser desestimada por el cliente.');
   }
@@ -335,6 +371,24 @@ publicRouter.post('/quotations/:token/request-adjustment', (req: Request, res: R
   const quot = state.quotations.find((q) => q.publicToken === req.params.token);
   if (!quot) {
     return sendProblem(res, 404, 'Cotización no encontrada', 'No existe.');
+  }
+
+  if (quot.isLatestRevision === false || Boolean(quot.supersededByQuotationId)) {
+    return sendProblem(
+      res,
+      409,
+      'Revisión superada',
+      'Existe una revisión más reciente para esta cotización. Solicite ajustes sobre la versión vigente.'
+    );
+  }
+
+  if (req.body?.expectedUpdatedAt && req.body.expectedUpdatedAt !== quot.updatedAt) {
+    return sendProblem(
+      res,
+      409,
+      'Colisión de edición detectada',
+      'La propuesta fue actualizada recientemente por el asesor comercial. Recargue la página antes de enviar su solicitud.'
+    );
   }
 
   if (quot.status === 'DRAFT') {

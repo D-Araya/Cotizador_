@@ -193,4 +193,136 @@ describe('Dashboards por rol, permisos y cuadre por asesor', () => {
       .set('Authorization', `Bearer ${repToken}`);
     expect(kpiForbidden.status).toBe(403);
   });
+
+  it('8. SALES_REP solo visualiza sus propias cotizaciones en /quotations, /quotations/kpis y /quotations/follow-up/due (y recibe 403 al pedir otro salesRepId)', async () => {
+    const adminLogin = await request(app)
+      .post('/api/v1/auth/login')
+      .send({ email: 'admin@mlingenieria.cl', password: 'admin123' });
+    const adminToken = adminLogin.body.token;
+
+    const repLogin = await request(app)
+      .post('/api/v1/auth/login')
+      .send({ email: 'smorales@mlingenieria.cl', password: 'admin123' });
+    const repToken = repLogin.body.token;
+
+    // 1. Listar cotizaciones como SALES_REP solo devuelve cotizaciones de usr-sales-01
+    const repQuotesRes = await request(app)
+      .get('/api/v1/quotations')
+      .set('Authorization', `Bearer ${repToken}`);
+    expect(repQuotesRes.status).toBe(200);
+    expect(Array.isArray(repQuotesRes.body)).toBe(true);
+    expect(repQuotesRes.body.every((q: any) => q.salesRepId === 'usr-sales-01')).toBe(true);
+
+    // 2. Intentar filtrar cotizaciones de otro asesor como SALES_REP devuelve 403
+    const forbiddenList = await request(app)
+      .get('/api/v1/quotations?salesRepId=usr-admin-01')
+      .set('Authorization', `Bearer ${repToken}`);
+    expect(forbiddenList.status).toBe(403);
+
+    const forbiddenKpis = await request(app)
+      .get('/api/v1/quotations/kpis?salesRepId=usr-admin-01')
+      .set('Authorization', `Bearer ${repToken}`);
+    expect(forbiddenKpis.status).toBe(403);
+
+    const forbiddenDue = await request(app)
+      .get('/api/v1/quotations/follow-up/due?salesRepId=usr-admin-01')
+      .set('Authorization', `Bearer ${repToken}`);
+    expect(forbiddenDue.status).toBe(403);
+
+    // 3. KPIs de SALES_REP cuadran con su listado personal y son menores que el global del ADMIN
+    const adminKpis = await request(app)
+      .get('/api/v1/quotations/kpis')
+      .set('Authorization', `Bearer ${adminToken}`);
+    const repKpis = await request(app)
+      .get('/api/v1/quotations/kpis')
+      .set('Authorization', `Bearer ${repToken}`);
+    expect(repKpis.status).toBe(200);
+    expect(repKpis.body.total).toBe(repQuotesRes.body.length);
+    expect(repKpis.body.total).toBeLessThan(adminKpis.body.total);
+  });
+
+  it('9. Protección contra colisiones de edición (expectedUpdatedAt / expectedStatus) y bloqueo de revisiones superadas (409 Conflict)', async () => {
+    const adminLogin = await request(app)
+      .post('/api/v1/auth/login')
+      .send({ email: 'admin@mlingenieria.cl', password: 'admin123' });
+    const adminToken = adminLogin.body.token;
+
+    // Crear cotización borrador
+    const createRes = await request(app)
+      .post('/api/v1/quotations')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        customerId: 'cust-01',
+        contactId: 'cnt-01',
+        title: 'Cotización Control Concurrencia',
+      });
+    expect(createRes.status).toBe(201);
+    const quote = createRes.body;
+
+    // 1. Intentar guardar con un expectedUpdatedAt obsoleto devuelve 409 Conflict
+    const stalePatch = await request(app)
+      .patch(`/api/v1/quotations/${quote.id}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        title: 'Intento con timestamp antiguo',
+        expectedUpdatedAt: '2020-01-01T00:00:00.000Z',
+      });
+    expect(stalePatch.status).toBe(409);
+    expect(stalePatch.body.title).toContain('Colisión de edición');
+
+    // 2. Guardar con el expectedUpdatedAt vigente funciona (200 OK)
+    const validPatch = await request(app)
+      .patch(`/api/v1/quotations/${quote.id}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        title: 'Actualización concurrente válida',
+        expectedUpdatedAt: quote.updatedAt,
+      });
+    expect(validPatch.status).toBe(200);
+
+    // 3. Agregar líneas y enviar la cotización (R1)
+    await request(app)
+      .put(`/api/v1/quotations/${quote.id}/lines`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        lines: [{ catalogItemId: 'prod-01', quantity: 2, price: 65000 }],
+      })
+      .expect(200);
+
+    const sendRes = await request(app)
+      .post(`/api/v1/quotations/${quote.id}/send`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+    const sentQuote = sendRes.body;
+
+    // 4. Crear nueva revisión R2 (marca R1 como isLatestRevision=false y supersededByQuotationId=R2.id)
+    const revRes = await request(app)
+      .post(`/api/v1/quotations/${sentQuote.id}/revisions`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({})
+      .expect(201);
+    expect(revRes.body.revision).toBe(2);
+
+    // 5. Intentar aceptar, rechazar o pedir ajustes en la revisión superada R1 desde el enlace público devuelve 409 Conflict
+    const pubAcceptOld = await request(app)
+      .post(`/api/v1/public/quotations/${sentQuote.publicToken}/accept`)
+      .send({
+        termsAccepted: true,
+        signerName: 'Cliente Naval',
+        signerPosition: 'Gerente Operaciones',
+      });
+    expect(pubAcceptOld.status).toBe(409);
+    expect(pubAcceptOld.body.title).toContain('Revisión superada');
+
+    const pubRejectOld = await request(app)
+      .post(`/api/v1/public/quotations/${sentQuote.publicToken}/reject`)
+      .send({ reason: 'Precio' });
+    expect(pubRejectOld.status).toBe(409);
+
+    const pubAdjustOld = await request(app)
+      .post(`/api/v1/public/quotations/${sentQuote.publicToken}/request-adjustment`)
+      .send({ message: 'Ajuste en versión antigua' });
+    expect(pubAdjustOld.status).toBe(409);
+  });
 });
+

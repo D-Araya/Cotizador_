@@ -1,0 +1,6 @@
+{
+  "summary":  "Análisis arquitectónico exhaustivo y plan de implementación para la sincronización reactiva, aislamiento de sesiones por pestaña, control de concurrencia y matriz de acciones por rol entre los portales de Admin, Asesor y Cliente.",
+  "updatedAt":  "2026-10-30T00:39:41.786061114Z",
+  "requestFeedback":  true,
+  "userFacing":  true
+}

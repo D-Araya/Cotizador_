@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 import { User as UserType, CompanySettings, Customer } from '../../modules/types.ts';
 import { hasPermission } from '../../shared-kernel/permissions.ts';
-import { ThemeSelector } from '../theme.tsx';
+import { SidebarBottomActions } from '../theme.tsx';
 import { useCompany } from '../hooks/useCompany.ts';
 import { useCustomers } from '../hooks/useCustomers.ts';
 
@@ -146,7 +146,7 @@ export function AppLayout({
   });
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col transition-colors">
+    <div className="h-screen overflow-hidden bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col transition-colors">
       {/* Skip link for accessibility */}
       <a
         href="#main-content"
@@ -164,7 +164,7 @@ export function AppLayout({
       )}
 
       {/* Top Navbar */}
-      <header className="sticky top-0 z-40 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 shadow-2xs">
+      <header className="shrink-0 z-40 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 shadow-2xs">
         <div className="px-4 py-2.5 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             {/* Mobile menu toggle button */}
@@ -243,87 +243,78 @@ export function AppLayout({
                 </button>
               </div>
             )}
-
-            {/* Theme Selector */}
-            <ThemeSelector />
-
-            {/* Logout button */}
-            <button
-              type="button"
-              onClick={onLogout}
-              aria-label="Cerrar sesión"
-              title="Cerrar sesión"
-              className="p-2 rounded-lg text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 focus:outline-none focus:ring-2 focus:ring-rose-500 cursor-pointer"
-            >
-              <LogOut className="w-4 h-4" />
-            </button>
           </div>
         </div>
       </header>
 
       {/* Layout Body: Sidebar + Main Content */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex min-h-0 overflow-hidden">
         {/* Sidebar for Desktop & Collapsible for Mobile */}
         <nav
           id="app-sidebar"
           aria-label="Menú principal de navegación"
           className={`
             fixed md:static inset-y-0 left-0 z-30
-            w-64 md:w-60 bg-white dark:bg-slate-900
+            w-64 md:w-60 md:h-full bg-white dark:bg-slate-900
             border-r border-slate-200 dark:border-slate-800
-            p-4 space-y-1 overflow-y-auto shrink-0 transition-transform duration-200 ease-in-out
+            flex flex-col justify-between p-4 overflow-hidden shrink-0 transition-transform duration-200 ease-in-out
             md:translate-x-0
             ${mobileMenuOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'}
           `}
         >
-          <div className="md:hidden flex items-center justify-between pb-3 mb-2 border-b border-slate-200 dark:border-slate-800">
-            <span className="font-bold text-xs uppercase tracking-wider text-slate-400">Navegación</span>
-            <button
-              type="button"
-              onClick={() => setMobileMenuOpen(false)}
-              aria-label="Cerrar menú"
-              className="p-1 rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-
-          {visibleNavItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = location.pathname === item.to || location.pathname.startsWith(`${item.to}/`);
-
-            return (
-              <NavLink
-                key={item.to}
-                to={item.to}
+          <div className="flex-1 overflow-y-auto min-h-0 space-y-1">
+            <div className="md:hidden flex items-center justify-between pb-3 mb-2 border-b border-slate-200 dark:border-slate-800">
+              <span className="font-bold text-xs uppercase tracking-wider text-slate-400">Navegación</span>
+              <button
+                type="button"
                 onClick={() => setMobileMenuOpen(false)}
-                className={({ isActive: navActive }) => `
-                  w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-semibold
-                  transition-colors cursor-pointer
-                  ${
-                    navActive
-                      ? 'bg-indigo-600 text-white shadow-xs'
-                      : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
-                  }
-                `}
-                aria-current={isActive ? 'page' : undefined}
+                aria-label="Cerrar menú"
+                className="p-1 rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
               >
-                <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-white' : 'text-slate-400'}`} />
-                <span>{item.label}</span>
-              </NavLink>
-            );
-          })}
+                <X className="w-4 h-4" />
+              </button>
+            </div>
 
-          {/* Botón destacado "Chat IA" al final tras Bandeja Outbox (sin funcionalidad) */}
-          <div className="pt-2 mt-2 border-t border-slate-200 dark:border-slate-800">
-            <button
-              type="button"
-              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-bold text-white bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 hover:from-indigo-500 hover:via-purple-500 hover:to-pink-500 shadow-md shadow-indigo-500/25 border border-purple-400/30 transition-all cursor-pointer"
-            >
-              <Sparkles className="w-4 h-4 text-amber-300 shrink-0" />
-              <span>Chat IA</span>
-            </button>
+            {visibleNavItems.map((item) => {
+              const Icon = item.icon;
+              const isActive = location.pathname === item.to || location.pathname.startsWith(`${item.to}/`);
+
+              return (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={({ isActive: navActive }) => `
+                    w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-semibold
+                    transition-colors cursor-pointer
+                    ${
+                      navActive
+                        ? 'bg-indigo-600 text-white shadow-xs'
+                        : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                    }
+                  `}
+                  aria-current={isActive ? 'page' : undefined}
+                >
+                  <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-white' : 'text-slate-400'}`} />
+                  <span>{item.label}</span>
+                </NavLink>
+              );
+            })}
+
+            {/* Botón destacado "Chat IA" al final tras Bandeja Outbox (sin funcionalidad) */}
+            <div className="pt-2 mt-2 border-t border-slate-200 dark:border-slate-800">
+              <button
+                type="button"
+                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-bold text-white bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 hover:from-indigo-500 hover:via-purple-500 hover:to-pink-500 shadow-md shadow-indigo-500/25 border border-purple-400/30 transition-all cursor-pointer"
+              >
+                <Sparkles className="w-4 h-4 text-amber-300 shrink-0" />
+                <span>Chat IA</span>
+              </button>
+            </div>
           </div>
+
+          {/* Botones inferiores compartidos entre los tres portales */}
+          <SidebarBottomActions onLogout={onLogout} />
         </nav>
 
         {/* Mobile backdrop */}
@@ -339,7 +330,7 @@ export function AppLayout({
         <main
           id="main-content"
           tabIndex={-1}
-          className="flex-1 p-4 md:p-6 overflow-y-auto min-w-0 focus:outline-none"
+          className="flex-1 p-4 md:p-6 overflow-y-auto min-w-0 min-h-0 focus:outline-none"
         >
           <Outlet context={outletContext} />
         </main>

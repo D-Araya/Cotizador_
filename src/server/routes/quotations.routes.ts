@@ -37,6 +37,49 @@ export const quotationsRouter = express.Router();
 quotationsRouter.use(authenticateStaff);
 
 /**
+ * Valida control de concurrencia optimista (expectedUpdatedAt / expectedStatus)
+ * y bloqueo de revisiones superadas (isLatestRevision === false).
+ */
+function checkQuotationConcurrencyConflict(
+  quot: Quotation,
+  body: Record<string, any> | undefined,
+  res: Response,
+  options?: { checkSuperseded?: boolean }
+): boolean {
+  if (options?.checkSuperseded && (quot.isLatestRevision === false || Boolean(quot.supersededByQuotationId))) {
+    sendProblem(
+      res,
+      409,
+      'Cotización superada por nueva revisión',
+      `Esta versión (${quot.quotationNumber}) fue reemplazada por una revisión más reciente y no admite modificaciones.`
+    );
+    return true;
+  }
+
+  if (body?.expectedUpdatedAt && body.expectedUpdatedAt !== quot.updatedAt) {
+    sendProblem(
+      res,
+      409,
+      'Colisión de edición detectada',
+      'La cotización fue modificada recientemente en otro portal o pestaña. Recargue la vista antes de guardar.'
+    );
+    return true;
+  }
+
+  if (body?.expectedStatus && body.expectedStatus !== quot.status) {
+    sendProblem(
+      res,
+      409,
+      'Colisión de estado detectada',
+      `El estado de la cotización cambió a '${quot.status}' en otro portal. Recargue antes de continuar.`
+    );
+    return true;
+  }
+
+  return false;
+}
+
+/**
  * GET /api/v1/quotations
  * Lista de cotizaciones con paginación y filtros ?page&pageSize&q&status
  * Si el usuario es SALES_REP, devuelve ÚNICAMENTE las suyas.
@@ -57,9 +100,13 @@ quotationsRouter.get('/', (req: Request, res: Response) => {
 
   const { status, customerId, salesRepId, q, page, pageSize } = req.query;
 
-  // Filtrado por asesor comercial (opcional mediante query param ?salesRepId=)
-  // Por defecto, tanto Admin como Asesor ven el pool corporativo completo sincronizado
-  if (salesRepId) {
+  // Filtrado estricto por rol: SALES_REP solo visualiza sus propias cotizaciones
+  if (req.user?.role === 'SALES_REP') {
+    if (salesRepId && salesRepId !== req.user.id) {
+      return sendProblem(res, 403, 'Acceso denegado', 'No tiene autorización para consultar cotizaciones de otro asesor.');
+    }
+    list = list.filter((item) => item.salesRepId === req.user!.id);
+  } else if (salesRepId) {
     list = list.filter((item) => item.salesRepId === salesRepId);
   }
 
@@ -223,7 +270,12 @@ quotationsRouter.get('/follow-up/due', (req: Request, res: Response) => {
   let list = [...state.quotations];
 
   const salesRepId = req.query.salesRepId as string | undefined;
-  if (salesRepId) {
+  if (req.user?.role === 'SALES_REP') {
+    if (salesRepId && salesRepId !== req.user.id) {
+      return sendProblem(res, 403, 'Acceso denegado', 'No tiene autorización para consultar seguimientos de otro asesor.');
+    }
+    list = list.filter((q) => q.salesRepId === req.user!.id);
+  } else if (salesRepId) {
     list = list.filter((q) => q.salesRepId === salesRepId);
   }
 
@@ -248,7 +300,17 @@ quotationsRouter.get('/follow-up/due', (req: Request, res: Response) => {
  */
 quotationsRouter.get('/kpis', (req: Request, res: Response) => {
   const state = dbStore.getState();
-  const list = state.quotations;
+  const salesRepId = req.query.salesRepId as string | undefined;
+  let list = [...state.quotations];
+
+  if (req.user?.role === 'SALES_REP') {
+    if (salesRepId && salesRepId !== req.user.id) {
+      return sendProblem(res, 403, 'Acceso denegado', 'No tiene autorización para consultar métricas de otro asesor.');
+    }
+    list = list.filter((q) => q.salesRepId === req.user!.id);
+  } else if (salesRepId) {
+    list = list.filter((q) => q.salesRepId === salesRepId);
+  }
 
   const total = list.length;
   const draft = list.filter((q) => q.status === 'DRAFT').length;
@@ -287,6 +349,10 @@ quotationsRouter.get('/:id', (req: Request, res: Response) => {
   const quot = state.quotations.find((q) => q.id === req.params.id);
   if (!quot) return sendProblem(res, 404, 'Cotización no encontrada', 'No existe.');
 
+  if (req.user?.role === 'SALES_REP' && quot.salesRepId !== req.user.id) {
+    return sendProblem(res, 403, 'Acceso denegado', 'No tiene autorización para consultar cotizaciones de otro asesor.');
+  }
+
   const { isExpired } = computeQuotationValidity(quot);
   if (isExpired && quot.status !== 'ACCEPTED' && quot.status !== 'REJECTED' && quot.status !== 'DRAFT') {
     quot.status = 'EXPIRED';
@@ -323,6 +389,10 @@ quotationsRouter.patch('/:id', async (req: Request, res: Response) => {
 
   if (req.user?.role === 'SALES_REP' && quot.salesRepId !== req.user.id) {
     return sendProblem(res, 403, 'Acceso denegado', 'No puede modificar cotizaciones de otro asesor.');
+  }
+
+  if (checkQuotationConcurrencyConflict(quot, req.body, res, { checkSuperseded: true })) {
+    return;
   }
 
   if (quot.status !== 'DRAFT' && quot.status !== 'PENDING_APPROVAL') {
@@ -371,6 +441,10 @@ quotationsRouter.put('/:id/lines', (req: Request, res: Response) => {
 
   if (req.user?.role === 'SALES_REP' && quot.salesRepId !== req.user.id) {
     return sendProblem(res, 403, 'Acceso denegado', 'No puede modificar cotizaciones de otro asesor.');
+  }
+
+  if (checkQuotationConcurrencyConflict(quot, req.body, res, { checkSuperseded: true })) {
+    return;
   }
 
   if (quot.status !== 'DRAFT' && quot.status !== 'PENDING_APPROVAL') {
@@ -546,6 +620,10 @@ quotationsRouter.put('/:id/extra-costs', async (req: Request, res: Response) => 
     return sendProblem(res, 403, 'Acceso denegado', 'No puede modificar cotizaciones de otro asesor.');
   }
 
+  if (checkQuotationConcurrencyConflict(quot, req.body, res, { checkSuperseded: true })) {
+    return;
+  }
+
   if (quot.status !== 'DRAFT' && quot.status !== 'PENDING_APPROVAL') {
     return sendProblem(res, 400, 'Cotización no editable', 'Solo las cotizaciones en estado borrador o pendiente de aprobación pueden ser modificadas.');
   }
@@ -593,6 +671,10 @@ quotationsRouter.post('/:id/send', async (req: Request, res: Response) => {
 
   if (req.user?.role === 'SALES_REP' && quot.salesRepId !== req.user.id) {
     return sendProblem(res, 403, 'Acceso denegado', 'No puede enviar cotizaciones de otro asesor.');
+  }
+
+  if (checkQuotationConcurrencyConflict(quot, req.body, res, { checkSuperseded: true })) {
+    return;
   }
 
   if (quot.status === 'PENDING_APPROVAL') {
@@ -701,6 +783,10 @@ quotationsRouter.post('/:id/status', async (req: Request, res: Response) => {
   const state = dbStore.getState();
   const quot = state.quotations.find((q) => q.id === req.params.id);
   if (!quot) return sendProblem(res, 404, 'Cotización no encontrada', 'No existe.');
+
+  if (checkQuotationConcurrencyConflict(quot, req.body, res)) {
+    return;
+  }
 
   // REGLA: El personal no puede fijar ACCEPTED, REJECTED ni VIEWED arbitrariamente
   if (targetStatus === 'ACCEPTED' || targetStatus === 'REJECTED' || targetStatus === 'VIEWED') {
@@ -909,6 +995,10 @@ quotationsRouter.post('/:id/reject', async (req: Request, res: Response) => {
     return sendProblem(res, 403, 'Acceso denegado', 'No puede desestimar cotizaciones de otro asesor.');
   }
 
+  if (checkQuotationConcurrencyConflict(quot, req.body, res)) {
+    return;
+  }
+
   if (quot.status === 'ACCEPTED') {
     return sendProblem(res, 400, 'Cotización aceptada', 'No se puede rechazar una cotización ya aceptada formalmente.');
   }
@@ -1114,6 +1204,10 @@ quotationsRouter.post('/:id/accept-offline', async (req: Request, res: Response)
 
   if (req.user?.role === 'SALES_REP' && quot.salesRepId !== req.user.id) {
     return sendProblem(res, 403, 'Acceso denegado', 'No puede aceptar cotizaciones de otro asesor.');
+  }
+
+  if (checkQuotationConcurrencyConflict(quot, req.body, res)) {
+    return;
   }
 
   const parsed = quotationOfflineAcceptSchema.safeParse(req.body);
