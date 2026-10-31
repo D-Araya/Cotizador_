@@ -29,6 +29,7 @@ import {
   computeQuotationValidity,
   checkExpiringQuotationsWarning,
   createInvoiceForAcceptedQuotation,
+  createOperationForAcceptedQuotation,
 } from '../services/quotation-operations.js';
 
 export const quotationsRouter = express.Router();
@@ -1253,8 +1254,9 @@ quotationsRouter.post('/:id/accept-offline', async (req: Request, res: Response)
     timestamp: acceptTimestamp,
   });
 
-  // Generar automáticamente el documento de cobro (DC-XXXXXX) con sus hitos
+  // Generar automáticamente el documento de cobro (DC-XXXXXX) y la orden de trabajo (OP-YYYY-XXXX)
   await createInvoiceForAcceptedQuotation(quot, state, req.user?.name || 'Personal');
+  await createOperationForAcceptedQuotation(quot, state);
 
   await AuditService.logFromReq(
     req,

@@ -20,6 +20,11 @@ export function OperationsPage(props: OperationsPageProps) {
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedOpForMilestones, setSelectedOpForMilestones] = useState<OperationOrder | null>(null);
 
+  // Derivar siempre la orden activa desde la lista sincronizada para evitar estado congelado (stale snapshot) en el modal
+  const activeOpForMilestones = selectedOpForMilestones
+    ? operations.find((o) => o.id === selectedOpForMilestones.id) || selectedOpForMilestones
+    : null;
+
   if (!user || (loading && operations.length === 0)) {
     return <OperationsGridSkeleton />;
   }
@@ -264,10 +269,14 @@ export function OperationsPage(props: OperationsPageProps) {
 
       {/* Milestones & Deliverables Modal */}
       <OperationsMilestonesModal
-        isOpen={Boolean(selectedOpForMilestones)}
-        operation={selectedOpForMilestones}
+        isOpen={Boolean(activeOpForMilestones)}
+        operation={activeOpForMilestones}
         onClose={() => setSelectedOpForMilestones(null)}
-        onOperationUpdated={() => {
+        onOperationUpdated={(updatedOp) => {
+          if (updatedOp) {
+            updateOperationInList(updatedOp);
+            setSelectedOpForMilestones(updatedOp);
+          }
           refreshOperations();
         }}
       />

@@ -3,7 +3,7 @@ import crypto from 'node:crypto';
 import { dbStore } from '../../modules/db/store.js';
 import { publicLimiter, sendProblem } from '../security.js';
 import { toPublicQuotationDTO } from '../dto.js';
-import { computeQuotationValidity, createInvoiceForAcceptedQuotation } from '../services/quotation-operations.js';
+import { computeQuotationValidity, createInvoiceForAcceptedQuotation, createOperationForAcceptedQuotation } from '../services/quotation-operations.js';
 import { publicQuotationAcceptSchema } from '../schemas.js';
 import { verifyStaffToken } from '../auth.js';
 
@@ -248,8 +248,9 @@ publicRouter.post('/quotations/:token/accept', async (req: Request, res: Respons
     timestamp: acceptTimestamp,
   });
 
-  // Generar de forma inmediata el Documento de Cobro correlativo (DC-XXXXXX) con PaymentSchedule
+  // Generar de forma inmediata el Documento de Cobro correlativo (DC-XXXXXX) y la Orden de Trabajo (OP-YYYY-XXXX)
   await createInvoiceForAcceptedQuotation(quot, state, signerName);
+  await createOperationForAcceptedQuotation(quot, state);
 
   if (salesRepUser) {
     dbStore.addOutbox({

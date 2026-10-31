@@ -5,11 +5,54 @@ import { authenticateStaff } from '../middleware/auth.js';
 import { sendProblem } from '../security.js';
 import { AuditService } from '../services/audit.service.js';
 import { NumberingService } from '../services/numbering.service.js';
-import { OperationOrder } from '../../modules/types.js';
+import { OperationOrder, OperationMilestone, OperationDeliverable } from '../../modules/types.js';
 
 export const operationsRouter = express.Router();
 
 operationsRouter.use(authenticateStaff);
+
+/**
+ * Recalcula de manera pura e inmutable el porcentaje de avance y el estado de la orden
+ * exclusivamente a partir del arreglo de hitos (incluyendo regresiones de 100% -> En Proceso -> Programado).
+ */
+function recalculateOperationProgressAndStatus(
+  op: OperationOrder,
+  nextMilestones: OperationMilestone[],
+  nextDeliverables?: OperationDeliverable[]
+): OperationOrder {
+  const safeMilestones = nextMilestones.map((m) => ({ ...m }));
+  const safeDeliverables = (nextDeliverables ?? op.deliverables ?? []).map((d) => ({
+    ...d,
+    attachments: d.attachments ? d.attachments.map((a) => ({ ...a })) : undefined,
+  }));
+
+  const totalCount = safeMilestones.length;
+  const completedCount = safeMilestones.filter((m) => m.status === 'COMPLETED').length;
+  const progressPct = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
+
+  let nextStatus: OperationOrder['status'] = 'SCHEDULED';
+  let nextCompletedDate: string | undefined = undefined;
+
+  if (totalCount > 0 && progressPct === 100) {
+    nextStatus = 'COMPLETED';
+    nextCompletedDate = op.completedDate || new Date().toISOString();
+  } else if (progressPct > 0 || safeMilestones.some((m) => m.status === 'IN_PROGRESS')) {
+    nextStatus = 'IN_PROGRESS';
+    nextCompletedDate = undefined;
+  } else {
+    nextStatus = 'SCHEDULED';
+    nextCompletedDate = undefined;
+  }
+
+  return {
+    ...op,
+    milestones: safeMilestones,
+    deliverables: safeDeliverables,
+    progressPct,
+    status: nextStatus,
+    completedDate: nextCompletedDate,
+  };
+}
 
 // GET /operations con paginación ?page&pageSize&q&status -> { items, total }
 operationsRouter.get('/operations', (req: Request, res: Response) => {
@@ -84,17 +127,15 @@ operationsRouter.post('/operations', async (req: Request, res: Response) => {
     return sendProblem(res, 403, 'Acceso denegado', 'Solo puede crear órdenes de sus propias cotizaciones.');
   }
 
-  // Folio dinámico con año de la fecha (Punto 4)
   const orderNumber = await NumberingService.nextOperationNumber();
 
   const cust = state.customers.find((c) => c.id === quote.customerId);
   const businessName = quote.customerBusinessName || cust?.businessName || 'Cliente';
 
-  // Inicializar hitos estándar (P2.k)
-  const initialMs = Array.isArray(req.body.milestones) && req.body.milestones.length > 0
+  const initialMs: OperationMilestone[] = Array.isArray(req.body.milestones) && req.body.milestones.length > 0
     ? req.body.milestones.map((m: any) => ({
         id: m.id || `ms-${crypto.randomUUID()}`,
-        name: m.name,
+        name: String(m.name || 'Hito Técnico').trim(),
         date: m.date || new Date().toISOString().split('T')[0],
         status: m.status || 'PENDING',
         completedAt: m.status === 'COMPLETED' ? new Date().toISOString() : undefined,
@@ -105,21 +146,23 @@ operationsRouter.post('/operations', async (req: Request, res: Response) => {
         { id: `ms-${crypto.randomUUID()}`, name: 'Emisión de Informe Técnico Final y Planos', date: scheduledDate || new Date().toISOString().split('T')[0], status: 'PENDING' },
       ];
 
-  const initialDels = Array.isArray(req.body.deliverables)
+  const initialDels: OperationDeliverable[] = Array.isArray(req.body.deliverables)
     ? req.body.deliverables.map((d: any) => ({
         id: d.id || `dl-${crypto.randomUUID()}`,
-        name: d.name,
+        name: String(d.name || 'Entregable Técnico').trim(),
         status: d.status || 'PENDING',
-        link: d.link,
+        link: d.link || `https://docs.mlingenieria.cl/${orderNumber.toLowerCase()}/entregable.pdf`,
       }))
     : [
-        { id: `dl-${crypto.randomUUID()}`, name: 'Memoria Técnica y Planos Firmados', status: 'PENDING' },
+        {
+          id: `dl-${crypto.randomUUID()}`,
+          name: 'Memoria Técnica y Planos Firmados',
+          status: 'PENDING',
+          link: `https://docs.mlingenieria.cl/${orderNumber.toLowerCase()}/memoria-tecnica.pdf`,
+        },
       ];
 
-  const completedCount = initialMs.filter((m: any) => m.status === 'COMPLETED').length;
-  const progressPct = initialMs.length > 0 ? Math.round((completedCount / initialMs.length) * 100) : 0;
-
-  const newOp: OperationOrder = {
+  const baseOp: OperationOrder = {
     id: crypto.randomUUID(),
     orderNumber,
     quotationId: quote.id,
@@ -127,10 +170,10 @@ operationsRouter.post('/operations', async (req: Request, res: Response) => {
     customerId: quote.customerId,
     customerBusinessName: businessName,
     type,
-    title,
+    title: String(title).trim(),
     description: description || quote.notes || '',
     status: 'SCHEDULED',
-    progressPct,
+    progressPct: 0,
     assignedStaff: assignedStaff || 'Equipo de Operaciones ML',
     scheduledDate: scheduledDate || new Date().toISOString().split('T')[0],
     deliveryAddress: deliveryAddress || 'Instalaciones del cliente',
@@ -139,6 +182,7 @@ operationsRouter.post('/operations', async (req: Request, res: Response) => {
     deliverables: initialDels,
   };
 
+  const newOp = recalculateOperationProgressAndStatus(baseOp, initialMs, initialDels);
   state.operations.push(newOp);
 
   await AuditService.logFromReq(
@@ -156,8 +200,9 @@ operationsRouter.post('/operations', async (req: Request, res: Response) => {
 
 operationsRouter.patch('/operations/:id', async (req: Request, res: Response) => {
   const state = dbStore.getState();
-  const op = state.operations.find((o) => o.id === req.params.id);
-  if (!op) return sendProblem(res, 404, 'Orden no encontrada', 'No existe.');
+  const opIndex = state.operations.findIndex((o) => o.id === req.params.id);
+  if (opIndex === -1) return sendProblem(res, 404, 'Orden no encontrada', 'No existe.');
+  const op = state.operations[opIndex];
 
   if (req.user?.role === 'SALES_REP') {
     const quote = state.quotations.find((q) => q.id === op.quotationId);
@@ -169,58 +214,49 @@ operationsRouter.patch('/operations/:id', async (req: Request, res: Response) =>
   const { status, guideNumber, assignedStaff, completedDate, milestones, deliverables } = req.body;
   const before = { ...op };
 
-  if (milestones && Array.isArray(milestones)) {
-    op.milestones = milestones;
-  }
-  if (deliverables && Array.isArray(deliverables)) {
-    op.deliverables = deliverables;
-  }
+  const nextMilestones = Array.isArray(milestones) ? milestones : (op.milestones || []);
+  const nextDeliverables = Array.isArray(deliverables) ? deliverables : (op.deliverables || []);
 
-  // REGLA P2.k: El avance se calcula estrictamente desde los hitos; se elimina el control libre de porcentaje
-  if (op.milestones && op.milestones.length > 0) {
-    const completedCount = op.milestones.filter((m) => m.status === 'COMPLETED').length;
-    op.progressPct = Math.round((completedCount / op.milestones.length) * 100);
-  }
+  let updatedOp = recalculateOperationProgressAndStatus(op, nextMilestones, nextDeliverables);
 
   if (status) {
     if (!['SCHEDULED', 'IN_PROGRESS', 'COMPLETED'].includes(status)) {
       return sendProblem(res, 400, 'Estado inválido', 'Estado de orden no permitido.');
     }
-    op.status = status;
-    if (status === 'COMPLETED' && !op.completedDate) {
-      op.completedDate = completedDate || new Date().toISOString().split('T')[0];
-    }
-  } else if (op.progressPct === 100 && op.status !== 'COMPLETED') {
-    op.status = 'COMPLETED';
-    op.completedDate = completedDate || new Date().toISOString().split('T')[0];
-  } else if (op.progressPct > 0 && op.progressPct < 100 && op.status === 'SCHEDULED') {
-    op.status = 'IN_PROGRESS';
+    updatedOp = {
+      ...updatedOp,
+      status,
+      completedDate: status === 'COMPLETED' ? (completedDate || updatedOp.completedDate || new Date().toISOString()) : undefined,
+    };
   }
 
-  if (guideNumber !== undefined) op.guideNumber = String(guideNumber);
-  if (assignedStaff !== undefined) op.assignedStaff = String(assignedStaff);
+  if (guideNumber !== undefined) updatedOp = { ...updatedOp, guideNumber: String(guideNumber) };
+  if (assignedStaff !== undefined) updatedOp = { ...updatedOp, assignedStaff: String(assignedStaff) };
+
+  state.operations[opIndex] = updatedOp;
 
   await AuditService.logFromReq(
     req,
     'UPDATE_OPERATION',
     'operation',
-    op.id,
-    `Actualizó orden ${op.orderNumber} (estado: ${op.status}, avance calculado: ${op.progressPct}%)`,
+    updatedOp.id,
+    `Actualizó orden ${updatedOp.orderNumber} (estado: ${updatedOp.status}, avance calculado: ${updatedOp.progressPct}%)`,
     before,
-    op
+    updatedOp
   );
 
-  res.json(op);
+  res.json(updatedOp);
 });
 
 /**
  * POST /api/v1/operations/:id/milestones (P2.k)
- * Añade un nuevo hito y recalcula el progreso.
+ * Añade un nuevo hito de forma inmutable y recalcula el progreso y estado.
  */
 operationsRouter.post('/operations/:id/milestones', async (req: Request, res: Response) => {
   const state = dbStore.getState();
-  const op = state.operations.find((o) => o.id === req.params.id);
-  if (!op) return sendProblem(res, 404, 'Orden no encontrada', 'No existe.');
+  const opIndex = state.operations.findIndex((o) => o.id === req.params.id);
+  if (opIndex === -1) return sendProblem(res, 404, 'Orden no encontrada', 'No existe.');
+  const op = state.operations[opIndex];
 
   if (req.user?.role === 'SALES_REP') {
     const quote = state.quotations.find((q) => q.id === op.quotationId);
@@ -230,37 +266,50 @@ operationsRouter.post('/operations/:id/milestones', async (req: Request, res: Re
   }
 
   const { name, date, status } = req.body;
-  if (!name || !date) {
-    return sendProblem(res, 400, 'Datos incompletos', 'Nombre y fecha del hito son requeridos.');
+  const trimmedName = typeof name === 'string' ? name.trim() : '';
+  const trimmedDate = typeof date === 'string' && date.trim() ? date.trim() : new Date().toISOString().split('T')[0];
+
+  if (!trimmedName) {
+    return sendProblem(res, 400, 'Datos incompletos', 'El nombre del hito es requerido.');
   }
 
-  if (!op.milestones) op.milestones = [];
-  const newMilestone = {
+  const validStatus: OperationMilestone['status'] =
+    status === 'COMPLETED' || status === 'IN_PROGRESS' ? status : 'PENDING';
+
+  const newMilestone: OperationMilestone = {
     id: `ms-${crypto.randomUUID()}`,
-    name,
-    date,
-    status: status || 'PENDING',
-    completedAt: status === 'COMPLETED' ? new Date().toISOString() : undefined,
+    name: trimmedName,
+    date: trimmedDate,
+    status: validStatus,
+    completedAt: validStatus === 'COMPLETED' ? new Date().toISOString() : undefined,
   };
-  op.milestones.push(newMilestone);
 
-  // Recalcular progreso
-  const completed = op.milestones.filter((m) => m.status === 'COMPLETED').length;
-  op.progressPct = Math.round((completed / op.milestones.length) * 100);
-  if (op.progressPct === 100) op.status = 'COMPLETED';
-  else if (op.progressPct > 0 && op.status === 'SCHEDULED') op.status = 'IN_PROGRESS';
+  const nextMilestones = [...(op.milestones || []), newMilestone];
+  const updatedOp = recalculateOperationProgressAndStatus(op, nextMilestones);
+  state.operations[opIndex] = updatedOp;
 
-  res.status(201).json(op);
+  await AuditService.logFromReq(
+    req,
+    'ADD_OPERATION_MILESTONE',
+    'operation',
+    updatedOp.id,
+    `Añadió hito "${newMilestone.name}" en orden ${updatedOp.orderNumber} (avance: ${updatedOp.progressPct}%)`,
+    op,
+    updatedOp
+  );
+
+  res.status(201).json(updatedOp);
 });
 
 /**
  * PATCH /api/v1/operations/:id/milestones/:milestoneId (P2.k)
- * Actualiza el estado de un hito y recalcula automáticamente el avance.
+ * Actualiza de forma inmutable el estado, nombre o fecha de un hito y recalcula automáticamente el avance.
  */
 operationsRouter.patch('/operations/:id/milestones/:milestoneId', async (req: Request, res: Response) => {
   const state = dbStore.getState();
-  const op = state.operations.find((o) => o.id === req.params.id);
-  if (!op) return sendProblem(res, 404, 'Orden no encontrada', 'No existe.');
+  const opIndex = state.operations.findIndex((o) => o.id === req.params.id);
+  if (opIndex === -1) return sendProblem(res, 404, 'Orden no encontrada', 'No existe.');
+  const op = state.operations[opIndex];
 
   if (req.user?.role === 'SALES_REP') {
     const quote = state.quotations.find((q) => q.id === op.quotationId);
@@ -269,44 +318,98 @@ operationsRouter.patch('/operations/:id/milestones/:milestoneId', async (req: Re
     }
   }
 
-  if (!op.milestones) op.milestones = [];
-  const ms = op.milestones.find((m) => m.id === req.params.milestoneId);
-  if (!ms) return sendProblem(res, 404, 'Hito no encontrado', 'No existe.');
+  const currentMilestones = op.milestones || [];
+  const msExists = currentMilestones.some((m) => m.id === req.params.milestoneId);
+  if (!msExists) return sendProblem(res, 404, 'Hito no encontrado', 'No existe el hito especificado.');
 
   const { status, name, date } = req.body;
-  if (name !== undefined) ms.name = name;
-  if (date !== undefined) ms.date = date;
-  if (status !== undefined) {
-    ms.status = status;
-    if (status === 'COMPLETED') {
-      ms.completedAt = new Date().toISOString();
-    } else {
-      ms.completedAt = undefined;
+  if (name !== undefined && !String(name).trim()) {
+    return sendProblem(res, 400, 'Nombre inválido', 'El nombre del hito no puede estar vacío.');
+  }
+
+  const nextMilestones: OperationMilestone[] = currentMilestones.map((m) => {
+    if (m.id !== req.params.milestoneId) return { ...m };
+    const nextStatus: OperationMilestone['status'] =
+      status !== undefined && ['PENDING', 'IN_PROGRESS', 'COMPLETED'].includes(status)
+        ? status
+        : m.status;
+    return {
+      ...m,
+      name: name !== undefined ? String(name).trim() : m.name,
+      date: date !== undefined && String(date).trim() ? String(date).trim() : m.date,
+      status: nextStatus,
+      completedAt:
+        status !== undefined
+          ? nextStatus === 'COMPLETED'
+            ? m.completedAt || new Date().toISOString()
+            : undefined
+          : m.completedAt,
+    };
+  });
+
+  const updatedOp = recalculateOperationProgressAndStatus(op, nextMilestones);
+  state.operations[opIndex] = updatedOp;
+
+  await AuditService.logFromReq(
+    req,
+    'UPDATE_OPERATION_MILESTONE',
+    'operation',
+    updatedOp.id,
+    `Actualizó hito en orden ${updatedOp.orderNumber} (avance: ${updatedOp.progressPct}%, estado: ${updatedOp.status})`,
+    op,
+    updatedOp
+  );
+
+  res.json(updatedOp);
+});
+
+/**
+ * DELETE /api/v1/operations/:id/milestones/:milestoneId
+ * Elimina de forma inmutable un hito de la orden y recalcula automáticamente el avance.
+ */
+operationsRouter.delete('/operations/:id/milestones/:milestoneId', async (req: Request, res: Response) => {
+  const state = dbStore.getState();
+  const opIndex = state.operations.findIndex((o) => o.id === req.params.id);
+  if (opIndex === -1) return sendProblem(res, 404, 'Orden no encontrada', 'No existe.');
+  const op = state.operations[opIndex];
+
+  if (req.user?.role === 'SALES_REP') {
+    const quote = state.quotations.find((q) => q.id === op.quotationId);
+    if (quote && quote.salesRepId !== req.user.id) {
+      return sendProblem(res, 403, 'Acceso denegado', 'No puede modificar órdenes de otro asesor.');
     }
   }
 
-  // Recalcular progreso estrictamente desde los hitos
-  const completed = op.milestones.filter((m) => m.status === 'COMPLETED').length;
-  op.progressPct = Math.round((completed / op.milestones.length) * 100);
+  const currentMilestones = op.milestones || [];
+  const targetMs = currentMilestones.find((m) => m.id === req.params.milestoneId);
+  if (!targetMs) return sendProblem(res, 404, 'Hito no encontrado', 'No existe el hito especificado.');
 
-  if (op.progressPct === 100) {
-    op.status = 'COMPLETED';
-    if (!op.completedDate) op.completedDate = new Date().toISOString().split('T')[0];
-  } else if (op.progressPct > 0) {
-    if (op.status === 'SCHEDULED') op.status = 'IN_PROGRESS';
-  }
+  const nextMilestones = currentMilestones.filter((m) => m.id !== req.params.milestoneId);
+  const updatedOp = recalculateOperationProgressAndStatus(op, nextMilestones);
+  state.operations[opIndex] = updatedOp;
 
-  res.json(op);
+  await AuditService.logFromReq(
+    req,
+    'DELETE_OPERATION_MILESTONE',
+    'operation',
+    updatedOp.id,
+    `Eliminó hito "${targetMs.name}" en orden ${updatedOp.orderNumber} (avance: ${updatedOp.progressPct}%)`,
+    op,
+    updatedOp
+  );
+
+  res.json(updatedOp);
 });
 
 /**
  * POST /api/v1/operations/:id/deliverables (P2.k)
- * Añade un entregable a la orden.
+ * Añade un entregable de forma inmutable a la orden.
  */
 operationsRouter.post('/operations/:id/deliverables', async (req: Request, res: Response) => {
   const state = dbStore.getState();
-  const op = state.operations.find((o) => o.id === req.params.id);
-  if (!op) return sendProblem(res, 404, 'Orden no encontrada', 'No existe.');
+  const opIndex = state.operations.findIndex((o) => o.id === req.params.id);
+  if (opIndex === -1) return sendProblem(res, 404, 'Orden no encontrada', 'No existe.');
+  const op = state.operations[opIndex];
 
   if (req.user?.role === 'SALES_REP') {
     const quote = state.quotations.find((q) => q.id === op.quotationId);
@@ -316,27 +419,56 @@ operationsRouter.post('/operations/:id/deliverables', async (req: Request, res: 
   }
 
   const { name, status, link } = req.body;
-  if (!name) return sendProblem(res, 400, 'Nombre requerido', 'El nombre del entregable es obligatorio.');
+  const trimmedName = typeof name === 'string' ? name.trim() : '';
+  if (!trimmedName) {
+    return sendProblem(res, 400, 'Nombre requerido', 'El nombre del entregable es obligatorio.');
+  }
 
-  if (!op.deliverables) op.deliverables = [];
-  const newDel = {
+  const alreadyExists = (op.deliverables || []).some(
+    (d) => d.name.trim().toLowerCase() === trimmedName.toLowerCase()
+  );
+  if (alreadyExists) {
+    return sendProblem(res, 409, 'Entregable duplicado', 'Ya existe un entregable con ese nombre en esta orden de trabajo.');
+  }
+
+  const validStatus: OperationDeliverable['status'] =
+    status === 'READY' || status === 'DELIVERED' ? status : 'PENDING';
+
+  const newDel: OperationDeliverable = {
     id: `dl-${crypto.randomUUID()}`,
-    name,
-    status: status || 'PENDING',
-    link: link || '',
+    name: trimmedName,
+    status: validStatus,
+    link: typeof link === 'string' && link.trim()
+      ? link.trim()
+      : `https://docs.mlingenieria.cl/${op.orderNumber.toLowerCase()}/${encodeURIComponent(trimmedName.toLowerCase().replace(/\s+/g, '-'))}.pdf`,
   };
-  op.deliverables.push(newDel);
 
-  res.status(201).json(op);
+  const nextDeliverables = [...(op.deliverables || []), newDel];
+  const updatedOp = recalculateOperationProgressAndStatus(op, op.milestones || [], nextDeliverables);
+  state.operations[opIndex] = updatedOp;
+
+  await AuditService.logFromReq(
+    req,
+    'ADD_OPERATION_DELIVERABLE',
+    'operation',
+    updatedOp.id,
+    `Añadió entregable "${newDel.name}" en orden ${updatedOp.orderNumber}`,
+    op,
+    updatedOp
+  );
+
+  res.status(201).json(updatedOp);
 });
 
 /**
  * PATCH /api/v1/operations/:id/deliverables/:deliverableId (P2.k)
+ * Actualiza de forma inmutable un entregable (nombre, estado o enlace).
  */
 operationsRouter.patch('/operations/:id/deliverables/:deliverableId', async (req: Request, res: Response) => {
   const state = dbStore.getState();
-  const op = state.operations.find((o) => o.id === req.params.id);
-  if (!op) return sendProblem(res, 404, 'Orden no encontrada', 'No existe.');
+  const opIndex = state.operations.findIndex((o) => o.id === req.params.id);
+  if (opIndex === -1) return sendProblem(res, 404, 'Orden no encontrada', 'No existe.');
+  const op = state.operations[opIndex];
 
   if (req.user?.role === 'SALES_REP') {
     const quote = state.quotations.find((q) => q.id === op.quotationId);
@@ -345,26 +477,102 @@ operationsRouter.patch('/operations/:id/deliverables/:deliverableId', async (req
     }
   }
 
-  if (!op.deliverables) op.deliverables = [];
-  const del = op.deliverables.find((d) => d.id === req.params.deliverableId);
-  if (!del) return sendProblem(res, 404, 'Entregable no encontrado', 'No existe.');
+  const currentDeliverables = op.deliverables || [];
+  const delExists = currentDeliverables.some((d) => d.id === req.params.deliverableId);
+  if (!delExists) return sendProblem(res, 404, 'Entregable no encontrado', 'No existe el entregable especificado.');
 
   const { name, status, link } = req.body;
-  if (name !== undefined) del.name = name;
-  if (status !== undefined) del.status = status;
-  if (link !== undefined) del.link = link;
+  if (name !== undefined && !String(name).trim()) {
+    return sendProblem(res, 400, 'Nombre inválido', 'El nombre del entregable no puede estar vacío.');
+  }
 
-  res.json(op);
+  if (name !== undefined) {
+    const trimmedCandidate = String(name).trim().toLowerCase();
+    const duplicate = currentDeliverables.some(
+      (d) => d.id !== req.params.deliverableId && d.name.trim().toLowerCase() === trimmedCandidate
+    );
+    if (duplicate) {
+      return sendProblem(res, 409, 'Entregable duplicado', 'Ya existe otro entregable con ese nombre en esta orden.');
+    }
+  }
+
+  const nextDeliverables: OperationDeliverable[] = currentDeliverables.map((d) => {
+    if (d.id !== req.params.deliverableId) return { ...d };
+    const nextStatus: OperationDeliverable['status'] =
+      status !== undefined && ['PENDING', 'READY', 'DELIVERED'].includes(status)
+        ? status
+        : d.status;
+    return {
+      ...d,
+      name: name !== undefined ? String(name).trim() : d.name,
+      status: nextStatus,
+      link: link !== undefined ? String(link).trim() : d.link,
+    };
+  });
+
+  const updatedOp = recalculateOperationProgressAndStatus(op, op.milestones || [], nextDeliverables);
+  state.operations[opIndex] = updatedOp;
+
+  await AuditService.logFromReq(
+    req,
+    'UPDATE_OPERATION_DELIVERABLE',
+    'operation',
+    updatedOp.id,
+    `Actualizó entregable en orden ${updatedOp.orderNumber}`,
+    op,
+    updatedOp
+  );
+
+  res.json(updatedOp);
+});
+
+/**
+ * DELETE /api/v1/operations/:id/deliverables/:deliverableId
+ * Elimina de forma inmutable un entregable de la orden.
+ */
+operationsRouter.delete('/operations/:id/deliverables/:deliverableId', async (req: Request, res: Response) => {
+  const state = dbStore.getState();
+  const opIndex = state.operations.findIndex((o) => o.id === req.params.id);
+  if (opIndex === -1) return sendProblem(res, 404, 'Orden no encontrada', 'No existe.');
+  const op = state.operations[opIndex];
+
+  if (req.user?.role === 'SALES_REP') {
+    const quote = state.quotations.find((q) => q.id === op.quotationId);
+    if (quote && quote.salesRepId !== req.user.id) {
+      return sendProblem(res, 403, 'Acceso denegado', 'No puede modificar órdenes de otro asesor.');
+    }
+  }
+
+  const currentDeliverables = op.deliverables || [];
+  const targetDel = currentDeliverables.find((d) => d.id === req.params.deliverableId);
+  if (!targetDel) return sendProblem(res, 404, 'Entregable no encontrado', 'No existe el entregable especificado.');
+
+  const nextDeliverables = currentDeliverables.filter((d) => d.id !== req.params.deliverableId);
+  const updatedOp = recalculateOperationProgressAndStatus(op, op.milestones || [], nextDeliverables);
+  state.operations[opIndex] = updatedOp;
+
+  await AuditService.logFromReq(
+    req,
+    'DELETE_OPERATION_DELIVERABLE',
+    'operation',
+    updatedOp.id,
+    `Eliminó entregable "${targetDel.name}" en orden ${updatedOp.orderNumber}`,
+    op,
+    updatedOp
+  );
+
+  res.json(updatedOp);
 });
 
 /**
  * POST /api/v1/operations/:id/deliverables/:deliverableId/attachments (P3.n)
- * Añade un enlace a archivo en un entregable.
+ * Añade un enlace a archivo en un entregable de forma inmutable.
  */
 operationsRouter.post('/operations/:id/deliverables/:deliverableId/attachments', async (req: Request, res: Response) => {
   const state = dbStore.getState();
-  const op = state.operations.find((o) => o.id === req.params.id);
-  if (!op) return sendProblem(res, 404, 'Orden no encontrada', 'No existe.');
+  const opIndex = state.operations.findIndex((o) => o.id === req.params.id);
+  if (opIndex === -1) return sendProblem(res, 404, 'Orden no encontrada', 'No existe.');
+  const op = state.operations[opIndex];
 
   if (req.user?.role === 'SALES_REP') {
     const quote = state.quotations.find((q) => q.id === op.quotationId);
@@ -373,9 +581,9 @@ operationsRouter.post('/operations/:id/deliverables/:deliverableId/attachments',
     }
   }
 
-  if (!op.deliverables) op.deliverables = [];
-  const del = op.deliverables.find((d) => d.id === req.params.deliverableId);
-  if (!del) return sendProblem(res, 404, 'Entregable no encontrado', 'No existe.');
+  const currentDeliverables = op.deliverables || [];
+  const delExists = currentDeliverables.some((d) => d.id === req.params.deliverableId);
+  if (!delExists) return sendProblem(res, 404, 'Entregable no encontrado', 'No existe.');
 
   const { name, url, description } = req.body;
   if (!name || !url) {
@@ -384,26 +592,32 @@ operationsRouter.post('/operations/:id/deliverables/:deliverableId/attachments',
 
   const newAttachment = {
     id: `datt-${crypto.randomUUID()}`,
-    name,
-    url,
-    description: description || '',
+    name: String(name).trim(),
+    url: String(url).trim(),
+    description: description ? String(description).trim() : '',
     addedAt: new Date().toISOString(),
   };
 
-  if (!del.attachments) del.attachments = [];
-  del.attachments.push(newAttachment);
+  const nextDeliverables = currentDeliverables.map((d) =>
+    d.id === req.params.deliverableId
+      ? { ...d, attachments: [...(d.attachments || []), newAttachment] }
+      : { ...d }
+  );
+
+  state.operations[opIndex] = recalculateOperationProgressAndStatus(op, op.milestones || [], nextDeliverables);
 
   res.status(201).json(newAttachment);
 });
 
 /**
  * DELETE /api/v1/operations/:id/deliverables/:deliverableId/attachments/:attachmentId (P3.n)
- * Elimina un enlace adjunto de un entregable.
+ * Elimina un enlace adjunto de un entregable de forma inmutable.
  */
 operationsRouter.delete('/operations/:id/deliverables/:deliverableId/attachments/:attachmentId', async (req: Request, res: Response) => {
   const state = dbStore.getState();
-  const op = state.operations.find((o) => o.id === req.params.id);
-  if (!op) return sendProblem(res, 404, 'Orden no encontrada', 'No existe.');
+  const opIndex = state.operations.findIndex((o) => o.id === req.params.id);
+  if (opIndex === -1) return sendProblem(res, 404, 'Orden no encontrada', 'No existe.');
+  const op = state.operations[opIndex];
 
   if (req.user?.role === 'SALES_REP') {
     const quote = state.quotations.find((q) => q.id === op.quotationId);
@@ -412,15 +626,23 @@ operationsRouter.delete('/operations/:id/deliverables/:deliverableId/attachments
     }
   }
 
-  if (!op.deliverables) op.deliverables = [];
-  const del = op.deliverables.find((d) => d.id === req.params.deliverableId);
+  const currentDeliverables = op.deliverables || [];
+  const del = currentDeliverables.find((d) => d.id === req.params.deliverableId);
   if (!del) return sendProblem(res, 404, 'Entregable no encontrado', 'No existe.');
 
-  if (!del.attachments) del.attachments = [];
-  const attIndex = del.attachments.findIndex((a) => a.id === req.params.attachmentId);
-  if (attIndex === -1) return sendProblem(res, 404, 'Adjunto no encontrado', 'No existe.');
+  const currentAtts = del.attachments || [];
+  if (!currentAtts.some((a) => a.id === req.params.attachmentId)) {
+    return sendProblem(res, 404, 'Adjunto no encontrado', 'No existe.');
+  }
 
-  del.attachments.splice(attIndex, 1);
+  const nextDeliverables = currentDeliverables.map((d) =>
+    d.id === req.params.deliverableId
+      ? { ...d, attachments: (d.attachments || []).filter((a) => a.id !== req.params.attachmentId) }
+      : { ...d }
+  );
+
+  state.operations[opIndex] = recalculateOperationProgressAndStatus(op, op.milestones || [], nextDeliverables);
 
   res.status(204).send();
 });
+

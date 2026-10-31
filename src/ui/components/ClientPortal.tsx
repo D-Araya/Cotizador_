@@ -45,6 +45,8 @@ import {
 } from './Skeleton.tsx';
 import { apiRequest, subscribeToDomainSync, notifyQuotationSync, sanitizeSafeUrl } from '../api.ts';
 import { formatMoney } from '../../shared-kernel/formatMoney.ts';
+import { downloadTechnicalDeliverableFile } from './OperationsMilestonesModal.tsx';
+import { OPERATIONS_STORAGE_KEY } from '../hooks/useOperations.ts';
 
 const t = {
   portalTitle: 'Portal Corporativo del Cliente',
@@ -201,6 +203,13 @@ export function ClientPortal({
     };
     window.addEventListener('focus', handleFocus);
 
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === OPERATIONS_STORAGE_KEY) {
+        loadPortalData(true);
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+
     // Sondeo de sincronización periódica cada 4 segundos
     const interval = setInterval(() => {
       if (document.visibilityState === 'visible') {
@@ -211,6 +220,7 @@ export function ClientPortal({
     return () => {
       unsubscribe();
       window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('storage', handleStorage);
       clearInterval(interval);
     };
   }, [user]);
@@ -1172,7 +1182,7 @@ export function ClientPortal({
                       {op.deliverables && op.deliverables.length > 0 && (
                         <div className="space-y-1.5 pt-2 border-t border-slate-100 dark:border-slate-800">
                           <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
-                            Entregables y Documentación Técnica (Solo Lectura):
+                            Entregables Documentales y Técnicos (Formato PDF):
                           </span>
                           <div className="space-y-1">
                             {op.deliverables.map((del) => (
@@ -1180,38 +1190,20 @@ export function ClientPortal({
                                 key={del.id}
                                 className="flex items-center justify-between p-2 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs"
                               >
-                                <div>
-                                  <span className="font-medium text-slate-800 dark:text-slate-200 block">
+                                <div className="min-w-0 flex-1">
+                                  <span className="font-medium text-slate-800 dark:text-slate-200 block truncate">
                                     📄 {del.name}
                                   </span>
-                                  {del.link && (
-                                    <a
-                                      href={sanitizeSafeUrl(del.link, false)}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="text-indigo-600 dark:text-indigo-400 hover:underline text-[11px] block"
-                                    >
-                                      Descargar / Ver entregable
-                                    </a>
-                                  )}
-                                  {(del as any).attachments && (del as any).attachments.length > 0 && (
-                                    <div className="flex flex-col gap-0.5 mt-1">
-                                      {((del as any).attachments as any[]).map((att) => (
-                                        <a
-                                          key={att.id}
-                                          href={sanitizeSafeUrl(att.url)}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          className="text-indigo-600 dark:text-indigo-400 hover:underline text-[11px] flex items-center gap-1"
-                                        >
-                                          🔗 {att.name}
-                                        </a>
-                                      ))}
-                                    </div>
-                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => downloadTechnicalDeliverableFile(op, del)}
+                                    className="mt-0.5 inline-flex items-center gap-1 text-indigo-600 dark:text-indigo-400 hover:underline text-[11px] font-semibold cursor-pointer text-left"
+                                  >
+                                    ⬇ Descargar PDF
+                                  </button>
                                 </div>
                                 <span
-                                  className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                  className={`px-2 py-0.5 rounded text-[10px] font-bold shrink-0 ${
                                     del.status === 'DELIVERED'
                                       ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
                                       : del.status === 'READY'

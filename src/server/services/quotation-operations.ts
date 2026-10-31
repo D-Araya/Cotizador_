@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { Quotation, Invoice } from '../../modules/types.js';
+import { Quotation, Invoice, OperationOrder } from '../../modules/types.js';
 import { NumberingService } from './numbering.service.js';
 import { buildPaymentSchedule } from '../routes/invoices.routes.js';
 import { dbStore } from '../../modules/db/store.js';
@@ -114,3 +114,76 @@ export async function createInvoiceForAcceptedQuotation(
   state.invoices.push(newInvoice);
   return newInvoice;
 }
+
+/**
+ * Genera automáticamente la Orden de Trabajo (OP-YYYY-XXXX) con hitos y entregables iniciales
+ * cuando una cotización es aceptada (online u offline), si aún no existe una para dicha cotización.
+ */
+export async function createOperationForAcceptedQuotation(
+  quote: Quotation,
+  state = dbStore.getState()
+): Promise<OperationOrder> {
+  const existing = state.operations.find((o) => o.quotationId === quote.id);
+  if (existing) {
+    return existing;
+  }
+
+  const orderNumber = await NumberingService.nextOperationNumber();
+  const cust = state.customers.find((c) => c.id === quote.customerId);
+  const salesRep = state.users.find((u) => u.id === quote.salesRepId);
+  const scheduledDate = new Date(Date.now() + 2 * 86400000).toISOString().split('T')[0];
+
+  const hasServices = (quote.lines || []).some((l) => l.type === 'SERVICE');
+  const opType = hasServices ? 'SERVICE_EXECUTION' : 'PRODUCT_DELIVERY';
+  const firstLineName = quote.lines?.[0]?.name || 'Proyecto de Ingeniería Naval';
+
+  const newOp: OperationOrder = {
+    id: `op-${crypto.randomUUID()}`,
+    orderNumber,
+    quotationId: quote.id,
+    quotationNumber: quote.quotationNumber,
+    customerId: quote.customerId,
+    customerBusinessName: quote.customerBusinessName || cust?.businessName || 'Cliente',
+    type: opType,
+    title: quote.title || `Ejecución: ${firstLineName}`,
+    description: quote.notes || 'Orden operativa generada automáticamente tras aprobación de cotización.',
+    status: 'SCHEDULED',
+    progressPct: 0,
+    assignedStaff: salesRep?.name || 'Equipo de Operaciones M&L',
+    scheduledDate,
+    deliveryAddress: cust?.address || 'Instalaciones del cliente',
+    itemsIncluded: (quote.lines || []).map((l) => `${l.quantity}x ${l.name}`),
+    milestones: [
+      {
+        id: `ms-${crypto.randomUUID()}`,
+        name: 'Planificación Técnica y Levantamiento de Información',
+        date: scheduledDate,
+        status: 'PENDING',
+      },
+      {
+        id: `ms-${crypto.randomUUID()}`,
+        name: opType === 'PRODUCT_DELIVERY' ? 'Preparación y Certificación de Suministros' : 'Ejecución Técnica en Terreno / Taller',
+        date: scheduledDate,
+        status: 'PENDING',
+      },
+      {
+        id: `ms-${crypto.randomUUID()}`,
+        name: opType === 'PRODUCT_DELIVERY' ? 'Despacho y Acta de Recepción Conforme' : 'Emisión de Informe Técnico Final y Planos',
+        date: scheduledDate,
+        status: 'PENDING',
+      },
+    ],
+    deliverables: [
+      {
+        id: `dl-${crypto.randomUUID()}`,
+        name: opType === 'PRODUCT_DELIVERY' ? 'Guía de Despacho y Certificados de Calidad' : 'Memoria Técnica y Planos Firmados',
+        status: 'PENDING',
+        link: `https://docs.mlingenieria.cl/${orderNumber.toLowerCase()}/entregable-principal.pdf`,
+      },
+    ],
+  };
+
+  state.operations.unshift(newOp);
+  return newOp;
+}
+
