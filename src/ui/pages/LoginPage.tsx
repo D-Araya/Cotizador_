@@ -9,6 +9,8 @@ import {
   Briefcase,
   Building2,
   Sparkles,
+  X,
+  FileCode,
 } from 'lucide-react';
 import { ThemeSelector } from '../theme.tsx';
 
@@ -77,6 +79,7 @@ export function LoginPage({
 }: LoginPageProps) {
   const [emailInput, setEmailInput] = useState<string>('admin@mlingenieria.cl');
   const [passwordInput, setPasswordInput] = useState<string>('admin123');
+  const [showSwaggerModal, setShowSwaggerModal] = useState<boolean>(false);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -120,9 +123,11 @@ export function LoginPage({
 
             <a
               href="/api-docs"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-colors flex items-center gap-1 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800/80 px-3 py-1.5 rounded-xl shadow-xs"
+              onClick={(e) => {
+                e.preventDefault();
+                setShowSwaggerModal(true);
+              }}
+              className="text-xs text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-colors flex items-center gap-1 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800/80 px-3 py-1.5 rounded-xl shadow-xs cursor-pointer"
             >
               <span>Swagger API</span>
               <ExternalLink className="w-3 h-3" />
@@ -258,6 +263,50 @@ export function LoginPage({
           M&L Ingeniería Naval SpA &bull; Servicios de Ingeniería, Peritajes DIRECTEMAR y Suministros Técnicos &bull; Chile
         </footer>
       </div>
+
+      {showSwaggerModal && (
+        <div
+          className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-xs flex items-center justify-center p-2 sm:p-6"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Documentación Swagger API OpenAPI 3.1"
+        >
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl w-full max-w-6xl h-[90vh] flex flex-col overflow-hidden">
+            <div className="px-4 py-3 bg-slate-900 text-white flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2.5">
+                <FileCode className="w-4 h-4 text-indigo-400" />
+                <span className="font-bold text-sm">
+                  Cotizador Online &mdash; Especificación OpenAPI 3.1 (Swagger UI)
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <a
+                  href="/api/openapi.yaml"
+                  download="openapi.yaml"
+                  className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 transition-colors"
+                >
+                  Descargar YAML
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setShowSwaggerModal(false)}
+                  aria-label="Cerrar visor Swagger API"
+                  className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+            <div className="flex-1 bg-white overflow-hidden">
+              <iframe
+                src="/api-docs?embed=1"
+                title="Documentación Swagger API"
+                className="w-full h-full border-0"
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

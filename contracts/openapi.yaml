@@ -3092,7 +3092,7 @@ paths:
     get:
       tags: [Notifications]
       operationId: listNotificationsOutbox
-      summary: Lista los mensajes transaccionales en la Bandeja de Salida (Outbox: Email y WhatsApp)
+      summary: "Lista los mensajes transaccionales en la Bandeja de Salida (Outbox: Email y WhatsApp)"
       description: |
         **Rol requerido:** `ADMIN` o `SALES_REP` (`bearerAuth`). También disponible en los alias `/notifications/outbox` y `/outbox`.
       security:

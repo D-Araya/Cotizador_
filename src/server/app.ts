@@ -35,6 +35,9 @@ app.use(
   helmet({
     contentSecurityPolicy: false,
     crossOriginEmbedderPolicy: false,
+    crossOriginOpenerPolicy: false,
+    crossOriginResourcePolicy: false,
+    frameguard: false,
   })
 );
 
@@ -100,36 +103,34 @@ app.use('/api/v1', apiRouter);
 app.get('/api/openapi.yaml', (_req: Request, res: Response) => {
   const openApiPath = path.resolve('contracts/openapi.yaml');
   if (fs.existsSync(openApiPath)) {
-    res.setHeader('Content-Type', 'text/yaml');
+    res.setHeader('Content-Type', 'text/yaml; charset=utf-8');
     res.sendFile(openApiPath);
   } else {
     res.status(404).send('Not found');
   }
 });
 
-// Swagger UI: Solo disponible en desarrollo o para ADMIN autenticado
+// Swagger UI: Documentación interactiva OpenAPI 3.1
 app.get('/api-docs', (req: Request, res: Response) => {
-  if (process.env.NODE_ENV === 'production' && req.headers['x-admin-key'] !== process.env.ADMIN_KEY) {
-    return res.status(404).send('Not found');
-  }
-
+  const isEmbedded = req.query.embed === '1';
   res.send(`<!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Cotizador Online - Documentación OpenAPI 3.1</title>
   <link rel="stylesheet" type="text/css" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css" />
   <style>
     body { margin: 0; background: #fafafa; font-family: sans-serif; }
-    .topbar { background: #0f172a; padding: 12px 24px; color: white; display: flex; align-items: center; justify-content: space-between; }
+    .topbar { background: #0f172a; padding: 12px 24px; color: white; display: ${isEmbedded ? 'none' : 'flex'}; align-items: center; justify-content: space-between; }
     .topbar h1 { margin: 0; font-size: 18px; font-weight: 600; }
-    .topbar a { color: #38bdf8; text-decoration: none; font-size: 14px; }
+    .topbar a { color: #38bdf8; text-decoration: none; font-size: 14px; font-weight: 600; }
   </style>
 </head>
 <body>
   <div class="topbar">
     <h1>📄 Cotizador Online &mdash; OpenAPI 3.1 Contract</h1>
-    <a href="/app/dashboard">&larr; Volver al Panel</a>
+    <a href="/login">&larr; Volver al Sistema</a>
   </div>
   <div id="swagger-ui"></div>
   <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
@@ -140,8 +141,7 @@ app.get('/api-docs', (req: Request, res: Response) => {
         dom_id: '#swagger-ui',
         deepLinking: true,
         presets: [
-          SwaggerUIBundle.presets.apis,
-          SwaggerUIBundle.SwaggerUIStandalonePreset
+          SwaggerUIBundle.presets.apis
         ],
         layout: "BaseLayout"
       });
